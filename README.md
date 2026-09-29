@@ -72,8 +72,8 @@ model-native grounding providers, a synthesized answer with explicit
 citations. A [measured benchmark](https://github.com/JerryLiu369/agent-web-search/blob/main/docs/benchmark-2026-09-06.md) shows the
 practical difference: on a natural-language Chinese query asking for official
 sources, conventional SERP backends returned no government-domain results in
-the top 5, while the grounding provider returned the 海关总署 figures with a
-working citation.
+the top 5, while the grounding provider returned official figures from
+China's General Administration of Customs with a working citation.
 
 - **Agent-native by design.** The primary interface is a complete natural-language
   question, not a thin keyword fan-out to Google, Bing, or Baidu.
