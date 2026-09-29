@@ -281,7 +281,7 @@ it writes the shared `all_providers_failed` JSON to stderr and exits with status
 1, so shell-capable agents can distinguish a real failure from empty results.
 
 | CLI option | MCP argument | Values | Default |
-| --- | --- | --- |
+| --- | --- | --- | --- |
 | positional `QUERY` | `query` | 1–4,000 character natural-language question | required |
 | `--provider` (repeatable) | `providers` | enabled provider names | all enabled |
 | `--max-results` | `max_results` | 1–20 | `10` |
