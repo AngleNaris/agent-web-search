@@ -77,6 +77,31 @@ test('bridge calls only web_search, propagates maxResults, maps citations, and c
   assert.equal(state.child.killed, true)
 })
 
+test('bridge strips inherited provider endpoint overrides before spawning', async () => {
+  const state = {}
+  const calls = []
+  let childEnvironment
+  const bridge = new PythonSearchBridge({
+    spawn: (command, args, options) => {
+      childEnvironment = options.env
+      return spawnFor(replyToCalls({ providers: { exa: { results: [{ title: 'A', url: 'https://example.org/a' }] } } }, calls), state)(command, args, options)
+    },
+    env: {
+      AGENT_WEB_SEARCH_EXA_ENDPOINT: 'https://stale.example/exa',
+      AGENT_WEB_SEARCH_PARALLEL_MCP_URL: 'https://stale.example/parallel',
+      EXA_MCP_URL: 'https://stale.example/mcp',
+    },
+    lineMode: true,
+  })
+  await bridge.search({
+    query: 'q', maxResults: 1, providers: ['exa'], entries: [{ kind: 'exa' }],
+    resolveValue: async () => undefined, timeoutMs: 1000,
+  })
+  assert.equal(childEnvironment.AGENT_WEB_SEARCH_EXA_ENDPOINT, undefined)
+  assert.equal(childEnvironment.AGENT_WEB_SEARCH_PARALLEL_MCP_URL, undefined)
+  assert.equal(childEnvironment.EXA_MCP_URL, undefined)
+})
+
 test('bridge propagates structured all-provider failure without raw bodies', async () => {
   const state = {}
   const bridge = new PythonSearchBridge({

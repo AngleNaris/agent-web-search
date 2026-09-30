@@ -731,7 +731,7 @@ git clone https://github.com/JerryLiu369/agent-web-search.git
 cd agent-web-search
 uv venv
 uv pip install -e '.[dev]'
-uv run pytest -q
+uv run --extra dev pytest -q
 uv run ruff check .
 ```
 

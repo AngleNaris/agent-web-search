@@ -29,11 +29,23 @@ MCP sources remain the existing DSH-side exact-tool path.
   providers used by DSH.
 - Updated `ARCHITECTURE.md`, root READMEs, and `integrations/dsh/README.md`.
 - Replaced provenance tests with bridge/result-contract tests.
+- Stripped inherited Exa/Parallel endpoint overrides before spawning the Python
+  child and added a regression test for that isolation.
+- Documented that Python tests require an installed project environment.
 
 ## Verification
 
-- `npm test` — 31 DSH tests passed.
-- `python -m pytest -q` — 249 Python tests passed.
+- `npm test` — 32 DSH tests passed.
+- `uv run --extra dev pytest -q` — 249 Python tests passed.
+- Fresh editable install (`uv pip install -e '.[dev]'`) — 249 Python tests
+  passed in an isolated environment.
+- Fresh wheel build/install (`uv build`, then install into a separate isolated
+  environment) — imports for `agent_web_search` and `mcp_types` and both CLI
+  entry points passed.
+- An isolated environment with only `pytest` and no project install fails with
+  the expected `ModuleNotFoundError` for `agent_web_search`; the declared
+  package metadata already includes `agent-web-search`, `mcp`, and `mcp-types`,
+  so no packaging metadata change was necessary.
 - `git diff --check` — passed.
 - `node --check` — passed for all DSH JavaScript files.
 - No paid provider/API calls were made; bridge tests use fake child processes.

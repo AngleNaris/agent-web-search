@@ -43,6 +43,11 @@ const BASE_URL_ENV = {
   zhipu_chat_search: 'AGENT_WEB_SEARCH_ZHIPU_CHAT_BASE_URL',
 }
 
+const EXTRA_ENDPOINT_ENV = [
+  'AGENT_WEB_SEARCH_EXA_ENDPOINT',
+  'AGENT_WEB_SEARCH_PARALLEL_MCP_URL',
+]
+
 function endpointValue(raw) {
   if (typeof raw !== 'string' || raw.trim() === '') return undefined
   let url
@@ -346,6 +351,7 @@ async function buildEnvironment({ baseEnv, entries, providers, resolveValue, sig
   for (const [name, variable] of Object.entries(CREDENTIAL_ENV)) delete env[variable]
   for (const variable of Object.values(ENDPOINT_ENV)) delete env[variable]
   for (const variable of Object.values(BASE_URL_ENV)) delete env[variable]
+  for (const variable of EXTRA_ENDPOINT_ENV) delete env[variable]
   for (const entry of entries ?? []) {
     if (!providers.includes(entry.kind)) continue
     const credentialEnv = CREDENTIAL_ENV[entry.kind]

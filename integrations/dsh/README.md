@@ -90,8 +90,14 @@ From the repository root:
 
 ```bash
 npm test
-python -m pytest -q
+uv run --extra dev pytest -q
 ```
+
+The Python tests require the project and its development dependencies to be
+installed. Running `python -m pytest` from an uninstalled checkout is expected
+to fail with missing-module errors; it does not represent a package defect.
+For a standard virtual environment, use `python -m pip install -e '.[dev]'`
+before running `pytest -q`.
 
 The DSH bridge tests use fake child processes and never make paid provider
 requests. They cover result mapping, malformed and structured error results,
