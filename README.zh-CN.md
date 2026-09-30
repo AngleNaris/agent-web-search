@@ -647,6 +647,18 @@ hermes plugins enable agent-web-search --allow-tool-override
 
 Hermes 也可以不安装原生插件，而是通过通用 MCP 集成连接本项目。
 
+### DeepSeek Harness 原生插件
+
+直接从 GitHub 安装原生插件：
+
+```bash
+dsh plugin --profile <profile> add github:JerryLiu369/agent-web-search
+```
+
+该插件会有意替换 DSH 内置的 `web_search` 工具 —— 同一把工具、同一套提示词、同一个引用卡片 —— 除此之外不需要任何改动。装完请重启 DSH。桌面版的 profile 由 Electron 自己管，只能手工落盘，步骤见 [`integrations/dsh/README.md`](https://github.com/JerryLiu369/agent-web-search/blob/main/integrations/dsh/README.md)。
+
+DSH 也可以不装原生插件，而是用自带的 MCP 客户端连接本项目。
+
 ## 故障排查
 
 - **`all_providers_failed`** —— 所有 Provider 都失败了。MCP 会标记工具错误；CLI 会把诊断写入 stderr 并退出 1。请检查 Key、配额和网络；临时限流可以有界重试一次。

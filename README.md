@@ -726,6 +726,23 @@ after enabling it; restart the gateway when using a messaging channel.
 Hermes can also connect through its generic MCP integration instead of the
 native plugin.
 
+### Native DeepSeek Harness plugin
+
+Install the native plugin directly from GitHub:
+
+```bash
+dsh plugin --profile <profile> add github:JerryLiu369/agent-web-search
+```
+
+The plugin intentionally replaces DSH's built-in `web_search` tool — same tool
+name, same prompt, same citation UI — so enabling it needs nothing else. Restart
+DSH afterwards. The desktop app manages its own profile, so there the plugin has
+to be placed by hand; the steps are in
+[`integrations/dsh/README.md`](https://github.com/JerryLiu369/agent-web-search/blob/main/integrations/dsh/README.md).
+
+DSH can also connect through its built-in MCP client instead of the native
+plugin.
+
 ## Troubleshooting
 
 - **`all_providers_failed`** — every selected provider errored. MCP marks the

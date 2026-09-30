@@ -1,0 +1,162 @@
+/**
+ * Shared constants for `dsh-agent-web-search`.
+ *
+ * BOTH halves of the package read this module: the Host side (config, adapters,
+ * engine) and the browser card. A client bundle must NOT value-import
+ * `@deepseek-ai/*` packages, so every constant the two halves share lives here
+ * in a zero-import module instead of being mirrored in two places.
+ *
+ * @module dsh-agent-web-search/defaults
+ */
+
+/** Ported provider kinds, in the order the settings card lists them. */
+export const PROVIDER_KINDS = [
+  'exa',
+  'parallel',
+  'ddgs',
+  'brave',
+  'tavily',
+  'perplexity',
+  'you',
+  'gemini',
+  'grok',
+  'ark',
+  'zhipu_web_search',
+  'zhipu_chat_search',
+  'deepseek',
+  'messages',
+  'responses',
+  'mcp',
+]
+
+/** Human labels for the card's selects. */
+export const KIND_LABEL = {
+  exa: 'Exa',
+  parallel: 'Parallel',
+  ddgs: 'DuckDuckGo',
+  brave: 'Brave Search',
+  tavily: 'Tavily',
+  perplexity: 'Perplexity',
+  you: 'You.com',
+  gemini: 'Gemini (Google Search grounding)',
+  grok: 'Grok',
+  ark: 'Volcengine ARK',
+  zhipu_web_search: 'Zhipu Web Search',
+  zhipu_chat_search: 'Zhipu Chat Search',
+  deepseek: 'DeepSeek',
+  messages: 'Anthropic Messages (generic)',
+  responses: 'OpenAI Responses (generic)',
+  mcp: 'MCP tool (Streamable HTTP)',
+}
+
+/**
+ * The single credential reference each kind reads.
+ *
+ * `null` means the kind has an anonymous path: Exa and Parallel fall back to
+ * their free MCP endpoints when no key is present, and DDGS scrapes the public
+ * DuckDuckGo HTML endpoint — all three work with no configuration at all.
+ */
+export const KIND_CREDENTIAL_REF = {
+  exa: 'EXA_API_KEY',
+  parallel: 'PARALLEL_API_KEY',
+  ddgs: null,
+  brave: 'BRAVE_SEARCH_API_KEY',
+  tavily: 'TAVILY_API_KEY',
+  perplexity: 'PERPLEXITY_API_KEY',
+  you: 'YDC_API_KEY',
+  gemini: 'GEMINI_API_KEY',
+  grok: 'XAI_API_KEY',
+  ark: 'ARK_API_KEY',
+  zhipu_web_search: 'ZHIPU_WEB_SEARCH_API_KEY',
+  zhipu_chat_search: 'ZHIPU_CHAT_SEARCH_API_KEY',
+  deepseek: 'DEEPSEEK_API_KEY',
+  messages: 'AGENT_WEB_SEARCH_MESSAGES_API_KEY',
+  responses: 'AGENT_WEB_SEARCH_RESPONSES_API_KEY',
+  mcp: null, // resolved per MCP entry id by the adapter
+}
+
+/** Kinds that run without any credential at all. */
+export const ANONYMOUS_KINDS = ['exa', 'parallel', 'ddgs']
+
+/** Default upstream endpoints, also used as the card's input placeholders. */
+export const KIND_DEFAULT_BASE_URL = {
+  exa: 'https://mcp.exa.ai/mcp',
+  parallel: 'https://search.parallel.ai/mcp',
+  ddgs: 'https://html.duckduckgo.com/html/',
+  brave: 'https://api.search.brave.com/res/v1/web/search',
+  tavily: 'https://api.tavily.com/search',
+  perplexity: 'https://api.perplexity.ai/search',
+  you: 'https://ydc-index.io/v1/search',
+  gemini: 'https://generativelanguage.googleapis.com/v1beta/interactions',
+  grok: 'https://api.x.ai/v1/responses',
+  ark: 'https://ark.cn-beijing.volces.com/api/v3/responses',
+  zhipu_web_search: 'https://open.bigmodel.cn',
+  zhipu_chat_search: 'https://open.bigmodel.cn',
+  deepseek: 'https://api.deepseek.com',
+  messages: 'https://api.anthropic.com',
+  responses: 'https://api.openai.com/v1',
+  mcp: '',
+}
+
+/**
+ * The shipped default queue.
+ *
+ * The three anonymous kinds sit first purely so a fresh install serves
+ * searches with zero configuration; after that, order only matters in
+ * `fallback` mode, where the engine stops at the first success.
+ */
+/**
+ * The shipped queue.
+ *
+ * Only the three keyless upstreams ship ENABLED. Everything else is present but
+ * off, and that asymmetry is deliberate: an enabled upstream with no key fails
+ * its attempt on every search, so a queue that ships them on makes "enabled"
+ * mean "will probably fail" and the Settings page would advertise ten rows as on
+ * while none of them can serve. Turning one on is one click once its credential
+ * is set — the card keeps every kind listed even when the section omits it.
+ *
+ * `messages` and `responses` ship off even for a keyed deployment: both call a
+ * general-purpose chat/response model to answer a search, which is a different
+ * bargain from a search API (cost and latency are both model-sized), so they are
+ * opt-in rather than default.
+ */
+export const DEFAULT_QUEUE = [
+  { kind: 'exa', enabled: true, baseURL: '' },
+  { kind: 'parallel', enabled: true, baseURL: '' },
+  { kind: 'ddgs', enabled: true, baseURL: '' },
+  { kind: 'brave', enabled: false, baseURL: '' },
+  { kind: 'tavily', enabled: false, baseURL: '' },
+  { kind: 'perplexity', enabled: false, baseURL: '' },
+  { kind: 'you', enabled: false, baseURL: '' },
+  { kind: 'gemini', enabled: false, baseURL: '' },
+  { kind: 'grok', enabled: false, baseURL: '' },
+  { kind: 'ark', enabled: false, baseURL: '' },
+  { kind: 'zhipu_web_search', enabled: false, baseURL: '' },
+  { kind: 'zhipu_chat_search', enabled: false, baseURL: '' },
+  { kind: 'deepseek', enabled: false, baseURL: '' },
+  { kind: 'messages', enabled: false, baseURL: '' },
+  { kind: 'responses', enabled: false, baseURL: '' },
+]
+
+/** Aggregation modes. */
+export const MODES = ['fanout', 'fallback']
+
+/** Bounds shared by the schema and the card's validation. */
+export const MIN_ATTEMPT_TIMEOUT_MS = 1000
+export const MAX_ATTEMPT_TIMEOUT_MS = 60000
+export const DEFAULT_ATTEMPT_TIMEOUT_MS = 12000
+export const MIN_TOTAL_TIMEOUT_MS = 2000
+export const MAX_TOTAL_TIMEOUT_MS = 180000
+export const DEFAULT_TOTAL_TIMEOUT_MS = 30000
+export const MIN_MAX_RESULTS = 1
+export const MAX_MAX_RESULTS = 20
+export const DEFAULT_MAX_RESULTS = 8
+
+/** The id this plugin registers its provider under in the `ctx.web` seam. */
+export const AGENT_WEB_SEARCH_PROVIDER_ID = 'agent-web-search'
+
+/** The settings namespace: the composition entry id the Host keys the section by. */
+export const AGENT_WEB_SEARCH_NAMESPACE = 'agent-web-search'
+
+/** The package name, spelled here so both halves stay self-contained. */
+export const PACKAGE_NAME = 'dsh-agent-web-search'
