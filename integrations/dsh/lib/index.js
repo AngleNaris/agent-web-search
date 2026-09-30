@@ -19,7 +19,6 @@
 
 import { credentialRef } from '@deepseek-ai/dsh-credentials'
 import { Config, resolveConfig, snapshotsOf } from './config.js'
-import { discoverMcpTools, mcpCredentialRef } from './adapters/mcp.js'
 import { AgentWebSearchProvider } from './provider.js'
 import { SearchHistory } from './history.js'
 import {
@@ -30,7 +29,6 @@ import {
 
 export { Config, resolveConfig, snapshotsOf } from './config.js'
 export { AgentWebSearchProvider } from './provider.js'
-export { ADAPTERS, ADAPTER_LIST } from './adapters/index.js'
 export {
   AGENT_WEB_SEARCH_NAMESPACE,
   AGENT_WEB_SEARCH_PROVIDER_ID,
@@ -110,54 +108,6 @@ export function apply(ctx, config) {
       }, { headers: { 'cache-control': 'no-store' } })
     },
   }), 'agent-web-search: authenticated diagnostics'))
-  ctx.inject(['connection'], scoped => scoped.effect(() => scoped.connection.fetch.register({
-    path: '/api/agent-web-search/mcp-tools',
-    methods: ['GET', 'POST'],
-    requestBody: 'buffered',
-    async fetch(request) {
-      let id
-      let baseURL
-      let draftToken
-      if (request.method === 'POST') {
-        // A draft is discovered without persisting its endpoint or credential.
-        // Never use a saved token with a changed endpoint: that would leak the
-        // credential for source A to an unrelated server typed into source B.
-        if (Number(request.headers.get('content-length')) > 8192) return Response.json({ reason: 'invalid-input' }, { status: 413 })
-        let body
-        try {
-          const text = await request.text()
-          if (text.length > 8192) return Response.json({ reason: 'invalid-input' }, { status: 413 })
-          body = JSON.parse(text)
-        } catch { return Response.json({ reason: 'invalid-input' }, { status: 400 }) }
-        if (typeof body?.id !== 'string' || !mcpCredentialRef(body.id) || typeof body.baseURL !== 'string' || body.baseURL.length > 2048 || body.baseURL.trim().length === 0 || (body.token !== undefined && (typeof body.token !== 'string' || body.token.length > 4096))) {
-          return Response.json({ reason: 'invalid-input' }, { status: 400 })
-        }
-        id = body.id
-        baseURL = body.baseURL.trim()
-        draftToken = body.token?.trim() || undefined
-      } else {
-        id = new URL(request.url).searchParams.get('id')
-      }
-      const saved = resolveConfig(snapshotsOf(config)).providers.find(item => item.kind === 'mcp' && item.id === id)
-      if (request.method === 'GET' && !saved) return Response.json({ reason: 'not-found' }, { status: 404 })
-      const entry = { baseURL: baseURL ?? saved.baseURL }
-      try {
-        const ref = saved && saved.baseURL === entry.baseURL ? mcpCredentialRef(saved.id) : null
-        const token = draftToken ?? (ref ? await resolveCredential(ctx, ref) : undefined)
-        const signal = AbortSignal.any([request.signal, AbortSignal.timeout(12000)])
-        const tools = await discoverMcpTools({ entry, apiKey: token, signal })
-        return Response.json({ tools }, { headers: { 'cache-control': 'no-store' } })
-      } catch (error) {
-        const status = Number.isInteger(error?.status) && error.status >= 100 && error.status <= 599 ? error.status : undefined
-        const reason = status === 401 || status === 403 ? 'auth'
-          : status !== undefined ? 'upstream-http'
-            : error?.name === 'TimeoutError' ? 'timeout'
-              : typeof error?.message === 'string' && error.message.startsWith('mcp endpoint') ? 'invalid-endpoint'
-                : 'unavailable'
-        return Response.json({ reason, ...(status ? { upstreamStatus: status } : {}) }, { status: reason === 'invalid-endpoint' ? 400 : 502, headers: { 'cache-control': 'no-store' } })
-      }
-    },
-  }), 'agent-web-search: authenticated MCP discovery'))
   ctx.logger?.info(
     'agent-web-search: registered provider "%s"; edit it under Settings → %s',
     AGENT_WEB_SEARCH_PROVIDER_ID,

@@ -64,3 +64,14 @@ MCP sources remain the existing DSH-side exact-tool path.
 - The bridge uses one short-lived Python MCP child per built-in provider
   attempt. This preserves exact fanout/fallback and history semantics at the
   cost of process startup overhead.
+
+## Follow-up: custom MCP sources removed
+
+The custom Streamable HTTP MCP-source path described above (the `mcp` provider
+kind, `integrations/dsh/lib/adapters/`, the `/api/agent-web-search/mcp-tools`
+discovery route, and the settings "MCP tools" tab) was later removed. The
+Python core never had a generic MCP consumer, and the DSH adapter intentionally
+does not connect arbitrary third-party MCP servers as search providers. What
+remains MCP-related is only the internal transport: the bridge spawns the
+installed `agent-web-search-mcp` command over local stdio and calls its fixed
+`web_search` operation.

@@ -23,7 +23,7 @@ export class AgentWebSearchProvider {
       .filter(entry => entry.enabled !== false && PROVIDER_KINDS.includes(entry.kind))
       .map(entry => ({
         ...entry,
-        credentialRef: entry.kind === 'mcp' ? null : KIND_CREDENTIAL_REF[entry.kind],
+        credentialRef: KIND_CREDENTIAL_REF[entry.kind],
       }))
     const startedAt = Date.now()
     const attempts = []

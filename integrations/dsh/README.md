@@ -15,10 +15,8 @@ sources, and citation cards. It does **not** install or expose an
   `agent-web-search-mcp` command over local stdio. The bridge calls only the
   fixed `web_search` MCP operation, bounds output, propagates `maxResults`,
   honors cancellation and timeouts, and terminates the child process.
-- DSH retains its fanout/fallback strategy controls, live credentials, custom
-  MCP sources, in-memory history, diagnostics, and settings page. Custom MCP
-  sources remain a DSH-side path because they require per-source tool names and
-  declarative result mapping that are not part of the Python public response.
+- DSH retains its fanout/fallback strategy controls, live credentials,
+  in-memory history, diagnostics, and settings page.
 
 The Python package must be installed in the same environment as the DSH host:
 
@@ -33,13 +31,17 @@ passes provider credentials as MCP arguments.
 
 ## Installation
 
+Full steps, including the desktop app, the Python runtime, and a copy-paste
+install prompt, live in [docs/INSTALL.md](./docs/INSTALL.md). The short form:
+
 ```bash
-dsh plugin --profile <profile> add github:JerryLiu369/agent-web-search
+dsh plugin --profile <profile> add github:JerryLiu369/agent-web-search#feat/dsh-native-plugin
+python -m pip install agent-web-search-mcp
 ```
 
-Restart DSH after installation. The desktop profile is managed by Electron;
-manual desktop installation instructions depend on the DSH release and should
-use the profile's normal plugin-directory and bundle-registration mechanism.
+The desktop app ships its own `dsh plugin` command, which manages the desktop
+profile directly — no manual file placement is needed. Restart DSH after
+installation if the new provider is not picked up immediately.
 
 If another bundle writes the `web.searchProvider` value later, its layer wins.
 Keep this bundle last, or restate `searchProvider: agent-web-search` in the
@@ -55,9 +57,7 @@ controls retain the following runtime behavior:
 - provider enablement/order, max results, per-attempt timeout, total timeout,
   URL de-duplication, and answer inclusion;
 - DSH credential references, which are resolved server-side and never persisted
-  in the provider queue or sent to the model;
-- custom Streamable HTTP MCP sources with exact tool selection and read-only
-  discovery; and
+  in the provider queue or sent to the model; and
 - bounded in-memory call history and authenticated diagnostics.
 
 Built-in provider credentials use the canonical Python environment names listed
@@ -68,7 +68,7 @@ variables from that child. Restart DSH after changing environment variables.
 The per-source endpoint field accepts HTTPS URLs, or HTTP URLs on loopback for
 local fakes and development. Embedded credentials and URL fragments are
 rejected. The Python providers honor the DSH endpoint override for the built-in
-API/MCP providers; DDGS uses its Python backend and does not support replacing
+API providers; DDGS uses its Python backend and does not support replacing
 its endpoint with an arbitrary HTML URL.
 
 ## Native result and error behavior
@@ -80,9 +80,7 @@ cancellation, and all-provider failure become sanitized DSH provider errors;
 upstream response bodies and credentials are never copied into model-visible
 errors or history.
 
-The internal bridge uses local stdio only. DSH's custom remote MCP-source UI
-continues to use its existing authenticated connection route and exact-tool
-discovery; it is not converted into an arbitrary model-tool registry.
+The internal bridge uses local stdio only.
 
 ## Development and verification
 

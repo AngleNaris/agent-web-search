@@ -1,7 +1,7 @@
 {
   "name": "dsh-agent-web-search",
   "version": "0.5.0",
-  "description": "Native DSH aggregated web search with configurable Streamable HTTP MCP tools, source-attributed results, and compact private diagnostics.",
+  "description": "Native DSH aggregated web search with source-attributed results and compact private diagnostics.",
   "type": "module",
   "main": "lib/index.js",
   "exports": {
@@ -42,7 +42,8 @@
     "compatibility": {
       "dshReleases": {
         "0.1.7-rc.1": "compatible",
-        "0.1.7-rc.2": "compatible"
+        "0.1.7-rc.2": "compatible",
+        "0.2.0-rc.2": "compatible"
       },
       "node": ">=20"
     }

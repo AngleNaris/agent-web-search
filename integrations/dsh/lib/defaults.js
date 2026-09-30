@@ -1,8 +1,8 @@
 /**
  * Shared constants for `dsh-agent-web-search`.
  *
- * BOTH halves of the package read this module: the Host side (config, adapters,
- * engine) and the browser card. A client bundle must NOT value-import
+ * BOTH halves of the package read this module: the Host side (config, engine)
+ * and the browser card. A client bundle must NOT value-import
  * `@deepseek-ai/*` packages, so every constant the two halves share lives here
  * in a zero-import module instead of being mirrored in two places.
  *
@@ -26,7 +26,6 @@ export const PROVIDER_KINDS = [
   'deepseek',
   'messages',
   'responses',
-  'mcp',
 ]
 
 /** Human labels for the card's selects. */
@@ -46,7 +45,6 @@ export const KIND_LABEL = {
   deepseek: 'DeepSeek',
   messages: 'Anthropic Messages (generic)',
   responses: 'OpenAI Responses (generic)',
-  mcp: 'MCP tool (Streamable HTTP)',
 }
 
 /**
@@ -72,7 +70,6 @@ export const KIND_CREDENTIAL_REF = {
   deepseek: 'DEEPSEEK_API_KEY',
   messages: 'AGENT_WEB_SEARCH_MESSAGES_API_KEY',
   responses: 'AGENT_WEB_SEARCH_RESPONSES_API_KEY',
-  mcp: null, // resolved per MCP entry id by the adapter
 }
 
 /** Kinds that run without any credential at all. */
@@ -95,7 +92,6 @@ export const KIND_DEFAULT_BASE_URL = {
   deepseek: 'https://api.deepseek.com',
   messages: 'https://api.anthropic.com',
   responses: 'https://api.openai.com/v1',
-  mcp: '',
 }
 
 /**

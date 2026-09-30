@@ -41,6 +41,8 @@ export const Config = z.object({
   providers: z.array(z.object({
     // Accept retired kinds in existing profiles, then drop them in resolveConfig.
     // They never reach an adapter and do not make an upgraded profile unloadable.
+    // The id/toolName/template/path fields below are legacy: stored custom MCP
+    // sources from older versions still validate, then resolveConfig drops them.
     kind: z.string(),
     enabled: z.boolean().default(true),
     baseURL: z.string(),
@@ -73,17 +75,6 @@ export function normalizeEntry(entry) {
     kind: entry.kind,
     enabled: entry.enabled !== false,
     ...(baseURL.length > 0 ? { baseURL } : {}),
-    ...(entry.kind === 'mcp' ? {
-      id: entry.id,
-      toolName: entry.toolName.trim(),
-      inputTemplate: entry.inputTemplate,
-      responseMode: entry.responseMode,
-      resultPath: entry.resultPath,
-      urlPath: entry.urlPath,
-      titlePath: entry.titlePath,
-      snippetPath: entry.snippetPath,
-      publishedAtPath: entry.publishedAtPath,
-    } : {}),
   }
 }
 

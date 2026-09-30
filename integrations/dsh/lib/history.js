@@ -25,7 +25,6 @@ export class SearchHistory {
       resultCount: integer(event.resultCount),
       attempts: attempts.slice(0, 60).filter(item => KINDS.has(item.kind)).map(item => ({
         kind: item.kind,
-        ...(item.kind === 'mcp' && /^[a-z][a-z0-9-]{0,39}$/.test(item.sourceId ?? '') ? { sourceId: item.sourceId } : {}),
         status: STATUSES.has(item.status) ? item.status : 'failed',
         durationMs: integer(item.durationMs),
         resultCount: integer(item.resultCount),

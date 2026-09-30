@@ -24,13 +24,15 @@ tool schema, or failure semantics.
 
 The DeepSeek Harness integration is a product-boundary adapter over this same
 core. It registers one native `ctx.web` provider and keeps DSH's model-facing
-`web_search` tool, source rendering, citation cards, settings, history,
-diagnostics, and custom MCP-source path. Built-in provider attempts are
+`web_search` tool, source rendering, citation cards, settings, history, and
+diagnostics. Built-in provider attempts are
 delegated to a short-lived `agent-web-search-mcp` stdio child that calls only
 the fixed `web_search` operation; the bridge never registers an
-`mcp__...__web_search` model tool. DSH-only fanout/fallback orchestration and
-custom MCP-source handling remain at the seam because those controls are not
-part of the Python public MCP response.
+`mcp__...__web_search` model tool. DSH-only fanout/fallback orchestration
+remains at the seam because those controls are not
+part of the Python public MCP response. The DSH adapter does not consume
+arbitrary third-party MCP servers as search providers: provider dispatch stays
+in the Python `SearchEngine`.
 
 Each public provider response contains at most `answer` and `results`; `answer`
 is omitted when the provider produces no prose. `results`

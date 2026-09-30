@@ -728,21 +728,24 @@ native plugin.
 
 ### Native DeepSeek Harness plugin
 
-Install the native plugin directly from GitHub:
+Install the native plugin directly from GitHub (desktop and CLI profiles alike —
+the desktop app ships its own `dsh plugin` command, so no manual file
+placement is needed):
 
 ```bash
-dsh plugin --profile <profile> add github:JerryLiu369/agent-web-search
+dsh plugin --profile <profile> add github:JerryLiu369/agent-web-search#feat/dsh-native-plugin
+python -m pip install agent-web-search-mcp
 ```
 
 The plugin intentionally replaces the implementation behind DSH's native
 `web_search` seam — same model-facing tool name, prompt, normalized sources, and
 citation UI. It does not expose an `mcp__...__web_search` tool. Install the
 `agent-web-search-mcp` Python command in the same environment as DSH, then
-restart DSH; the bridge delegates built-in provider work to that command while
-DSH retains its native settings, history, diagnostics, and custom MCP-source
-path. The desktop app manages its own profile, so there the plugin has to be
-placed by hand; the steps are in
-[`integrations/dsh/README.md`](https://github.com/JerryLiu369/agent-web-search/blob/main/integrations/dsh/README.md).
+restart DSH if the new provider is not picked up immediately; the bridge
+delegates built-in provider work to that command while DSH retains its native
+settings, history, and diagnostics. Full steps and a copy-paste install prompt
+are in
+[`integrations/dsh/docs/INSTALL.md`](https://github.com/JerryLiu369/agent-web-search/blob/feat/dsh-native-plugin/integrations/dsh/docs/INSTALL.md).
 
 DSH can also connect through its built-in MCP client instead of the native
 plugin.

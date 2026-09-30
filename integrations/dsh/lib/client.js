@@ -11,22 +11,14 @@ window.__ModuleLoader__.load({
 		// value-import @deepseek-ai/* packages, and cannot reach the Host modules) */
 		const NS = "agent-web-search";
 		const PROVIDER_KINDS = ["exa", "parallel", "ddgs", "brave", "tavily", "perplexity", "you", "gemini", "grok", "ark", "zhipu_web_search", "zhipu_chat_search", "deepseek", "messages", "responses"];
-		const KIND_LABEL = { exa: "Exa", parallel: "Parallel", ddgs: "DuckDuckGo", brave: "Brave Search", tavily: "Tavily", perplexity: "Perplexity", you: "You.com", gemini: "Gemini (official API)", grok: "Grok", ark: "Volcengine ARK", zhipu_web_search: "Zhipu Web Search", zhipu_chat_search: "Zhipu Chat Search", deepseek: "DeepSeek", messages: "Anthropic Messages", responses: "OpenAI Responses", mcp: "MCP tool" };
+		const KIND_LABEL = { exa: "Exa", parallel: "Parallel", ddgs: "DuckDuckGo", brave: "Brave Search", tavily: "Tavily", perplexity: "Perplexity", you: "You.com", gemini: "Gemini (official API)", grok: "Grok", ark: "Volcengine ARK", zhipu_web_search: "Zhipu Web Search", zhipu_chat_search: "Zhipu Chat Search", deepseek: "DeepSeek", messages: "Anthropic Messages", responses: "OpenAI Responses" };
 		const KIND_CREDENTIAL_REF = { exa: "EXA_API_KEY", parallel: "PARALLEL_API_KEY", ddgs: null, brave: "BRAVE_SEARCH_API_KEY", tavily: "TAVILY_API_KEY", perplexity: "PERPLEXITY_API_KEY", you: "YDC_API_KEY", gemini: "GEMINI_API_KEY", grok: "XAI_API_KEY", ark: "ARK_API_KEY", zhipu_web_search: "ZHIPU_WEB_SEARCH_API_KEY", zhipu_chat_search: "ZHIPU_CHAT_SEARCH_API_KEY", deepseek: "DEEPSEEK_API_KEY", messages: "AGENT_WEB_SEARCH_MESSAGES_API_KEY", responses: "AGENT_WEB_SEARCH_RESPONSES_API_KEY" };
 		const KIND_DEFAULT_BASE_URL = { exa: "https://mcp.exa.ai/mcp", parallel: "https://search.parallel.ai/mcp", ddgs: "https://html.duckduckgo.com/html/", brave: "https://api.search.brave.com/res/v1/web/search", tavily: "https://api.tavily.com/search", perplexity: "https://api.perplexity.ai/search", you: "https://ydc-index.io/v1/search", gemini: "https://generativelanguage.googleapis.com/v1beta/interactions", grok: "https://api.x.ai/v1/responses", ark: "https://ark.cn-beijing.volces.com/api/v3/responses", zhipu_web_search: "https://open.bigmodel.cn", zhipu_chat_search: "https://open.bigmodel.cn", deepseek: "https://api.deepseek.com/anthropic", messages: "https://api.anthropic.com", responses: "https://api.openai.com/v1" };
 		const ANONYMOUS_KINDS = ["exa", "parallel", "ddgs"];
 		const MODES = ["fanout", "fallback"];
 		const NUMERIC_FIELDS = ["maxResults", "attemptTimeoutMs", "totalTimeoutMs"];
 		const BOOLEAN_FIELDS = ["dedupeByUrl", "includeAnswer"];
-		const MCP_FIELDS = ["toolName", "inputTemplate", "responseMode", "resultPath", "urlPath", "titlePath", "snippetPath", "publishedAtPath"];
-		const mcpRef = (id) => /^[a-z][a-z0-9-]{0,39}$/.test(id) ? `AGENT_WEB_SEARCH_MCP_${id.toUpperCase().replaceAll("-", "_")}` : null;
-		const validMcpUrl = (raw) => {
-			try {
-				const url = new URL(raw);
-				return (url.protocol === "https:" || (url.protocol === "http:" && ["localhost", "127.0.0.1", "[::1]"].includes(url.hostname))) && !url.username && !url.password && !url.hash;
-			} catch { return false; }
-		};
-		const entryKey = (entry) => entry.kind === "mcp" ? entry.id : entry.kind;
+		const entryKey = (entry) => entry.kind;
 		//#endregion
 
 		//#region locales
@@ -81,50 +73,14 @@ window.__ModuleLoader__.load({
 			overridden: "Overridden",
 			reset: "Reset",
 			dirty: "Unsaved changes",
-			pageIntro: "Choose search sources, connect an MCP tool, and inspect actual routes from one place.",
+			pageIntro: "Choose search sources and inspect actual routes from one place.",
 			tabSources: "Sources",
-			tabMcp: "MCP tools",
 			tabPolicy: "Search policy",
 			tabActivity: "Activity",
 			sourceCount: "sources enabled",
 			configure: "Configure",
+			collapse: "Collapse",
 			endpointHint: "Leave blank for the provider's default endpoint.",
-			mcpIntro: "Connect a trusted Streamable HTTP MCP endpoint to one exact tool. Local HTTP and remote HTTPS are supported; stdio is not included.",
-			mcpAdd: "Add MCP tool",
-			mcpEmpty: "No MCP tool configured. Add one to make it a search source.",
-			mcpName: "Tool name",
-			mcpUrl: "MCP endpoint URL",
-			mcpToken: "Bearer token (optional)",
-			mcpInput: "Tool arguments · JSON template",
-			mcpInputHint: "Use {{query}} for the search text and {{maxResults}} for a numeric result limit. The exact JSON object is sent to the selected tool.",
-			mcpOutput: "Result mapping",
-			mcpMode: "Response format",
-			mcpAuto: "Auto (structured content, JSON text, or plain answer)",
-			mcpStructured: "Structured content",
-			mcpJson: "JSON text block",
-			mcpText: "Plain text answer (without citation links)",
-			mcpResultPath: "Results array path",
-			mcpUrlPath: "URL field path",
-			mcpTitlePath: "Title field path",
-			mcpSnippetPath: "Snippet field path",
-			mcpDatePath: "Date field path",
-			mcpPointerHint: "Use JSON Pointer paths (for example /results and /url). A blank results path means the response root.",
-			mcpRemove: "Remove source",
-			mcpDiscover: "Discover tools",
-			mcpDiscoverHint: "Enter an MCP endpoint to discover tools without saving or invoking them.",
-			mcpDiscoverFailed: "Could not read the tool list. Check the endpoint, server availability and credentials.",
-			mcpDiscoverAuth: "MCP server denied access (HTTP 401/403). Enter its Bearer token below, then try again.",
-			mcpDiscoverHttp: "The MCP server returned",
-			mcpConnect: "1 · Connect service",
-			mcpChoose: "2 · Choose a tool",
-			mcpAdvanced: "Advanced arguments and result mapping",
-			mcpNew: "New MCP source",
-			mcpExpand: "Configure",
-			mcpCollapse: "Collapse",
-			mcpDraftHint: "Enter an endpoint, discover or specify one exact tool, then enable and save.",
-			mcpToolMissing: "This tool was not in the latest list; verify the name before enabling.",
-			mcpCredentialScope: "Endpoint changed; the saved token will not be sent. Enter a token for this URL if required.",
-			mcpToolsFound: "tools found",
 			historyTime: "Time",
 			historyState: "Status",
 			historyMode: "Mode",
@@ -132,13 +88,6 @@ window.__ModuleLoader__.load({
 			historyAttempts: "Upstream attempts",
 			fanoutShort: "Fanout",
 			fallbackShort: "Fallback",
-			mcpDiscoverTimeout: "MCP server did not respond within 12 seconds.",
-			mcpDiscoverInvalid: "Use HTTPS, or HTTP to localhost/127.0.0.1/::1, without embedded credentials.",
-			mcpDiscoverEmpty: "The MCP server returned no tools.",
-			mcpDiscoverLoading: "Reading tools…",
-			mcpDiscovered: "Available tools",
-			mcpInvalid: "Fix MCP endpoint, exact tool name, JSON template and mapping paths before saving.",
-			mcpTrust: "Only enable tools you trust to be called automatically by search. Removing a source does not delete its saved token from the credential store.",
 			policyIntro: "Adjust how enabled sources run and how their answers are merged.",
 			policyModeTitle: "Dispatch mode",
 			policyModeDesc: "Whether to query all upstreams concurrently or fall back in sequence.",
@@ -202,50 +151,14 @@ window.__ModuleLoader__.load({
 			overridden: "已覆盖",
 			reset: "恢复默认",
 			dirty: "有未保存的修改",
-			pageIntro: "在这里选择搜索来源、连接 MCP 工具，并查看实际调用的路由。",
+			pageIntro: "在这里选择搜索来源，并查看实际调用的路由。",
 			tabSources: "搜索来源",
-			tabMcp: "MCP 工具",
 			tabPolicy: "搜索策略",
 			tabActivity: "调用记录",
 			sourceCount: "个来源已启用",
 			configure: "配置",
+			collapse: "收起",
 			endpointHint: "留空则使用该来源的默认接口地址。",
-			mcpIntro: "将可信的 Streamable HTTP MCP 地址绑定到一个确定的工具。支持本机 HTTP 与远程 HTTPS；本版不含 stdio。",
-			mcpAdd: "添加 MCP 工具",
-			mcpEmpty: "尚未配置 MCP 工具。添加后可作为一个搜索来源。",
-			mcpName: "工具名称",
-			mcpUrl: "MCP 服务地址",
-			mcpToken: "Bearer 令牌（可选）",
-			mcpInput: "工具参数 · JSON 模板",
-			mcpInputHint: "用 {{query}} 表示搜索词、{{maxResults}} 表示数字结果数。模板中的 JSON 对象会提交给指定工具。",
-			mcpOutput: "结果映射",
-			mcpMode: "返回格式",
-			mcpAuto: "自动（结构化内容、JSON 文本或纯文本答案）",
-			mcpStructured: "结构化内容",
-			mcpJson: "JSON 文本块",
-			mcpText: "纯文本答案（不生成引用链接）",
-			mcpResultPath: "结果数组路径",
-			mcpUrlPath: "URL 字段路径",
-			mcpTitlePath: "标题字段路径",
-			mcpSnippetPath: "摘要字段路径",
-			mcpDatePath: "日期字段路径",
-			mcpPointerHint: "使用 JSON Pointer 路径，例如 /results 和 /url；结果路径留空表示响应根节点。",
-			mcpRemove: "移除来源",
-			mcpDiscover: "读取工具列表",
-			mcpDiscoverHint: "填入 MCP 服务地址即可直接读取工具，无须先保存，也不会调用工具。",
-			mcpDiscoverFailed: "无法读取工具列表，请检查地址、服务状态与凭据。",
-			mcpDiscoverAuth: "MCP 服务拒绝访问（HTTP 401/403）。请在下方填写 Bearer 令牌后重试。",
-			mcpDiscoverHttp: "MCP 服务返回",
-			mcpConnect: "1 · 连接服务",
-			mcpChoose: "2 · 选择工具",
-			mcpAdvanced: "高级参数与结果映射",
-			mcpNew: "新 MCP 来源",
-			mcpExpand: "配置",
-			mcpCollapse: "收起",
-			mcpDraftHint: "填写地址、读取或手动指定准确工具名，然后启用并保存。",
-			mcpToolMissing: "此工具未出现在最新列表中；启用前请核对准确名称。",
-			mcpCredentialScope: "地址已更改，旧令牌不会发送到新服务；如需认证，请为新地址填写令牌。",
-			mcpToolsFound: "个工具可用",
 			historyTime: "时间",
 			historyState: "状态",
 			historyMode: "模式",
@@ -253,18 +166,11 @@ window.__ModuleLoader__.load({
 			historyAttempts: "上游尝试",
 			fanoutShort: "并发",
 			fallbackShort: "回退",
-			mcpDiscoverTimeout: "MCP 服务在 12 秒内未响应。",
-			mcpDiscoverInvalid: "请使用 HTTPS，或 localhost/127.0.0.1/::1 的 HTTP 地址；不要在 URL 中包含凭据。",
-			mcpDiscoverEmpty: "MCP 服务未返回可用工具。",
-			mcpDiscoverLoading: "正在读取工具…",
-			mcpDiscovered: "可用工具",
-			mcpInvalid: "保存前请修正 MCP 地址、工具名、JSON 模板与字段路径。",
-			mcpTrust: "只启用你信任可被搜索自动调用的工具。移除来源不会删除凭据库里原有的令牌。",
 			policyIntro: "调整已启用来源的调用方式及答案合并方式。",
 			policyModeTitle: "多上游调度模式",
 			policyModeDesc: "选择并发查询全部上游以获取丰富结果，或顺序容灾以节省额度。",
 			maxResultsDesc: "合并去重后最终呈现给用户的网页结果数量上限。",
-			attemptTimeoutDesc: "单个搜索服务或 MCP 工具单次调用的最长等待时间（毫秒）。",
+			attemptTimeoutDesc: "单个搜索服务单次调用的最长等待时间（毫秒）。",
 			totalTimeoutDesc: "聚合搜索全链路的最长预算耗时，超时将自动收敛（毫秒）。",
 			dedupeByUrlDesc: "跨多个搜索来源发现相同网页 URL 时自动合并为一条引文。",
 			includeAnswerDesc: "保留上游直接生成的智能成文总结（适用于 Perplexity、Exa 等）。",
@@ -326,9 +232,6 @@ window.__ModuleLoader__.load({
 				this.queueDirty = false;
 				this.edits = {};
 				this.keyDrafts = {};
-				// Editing a saved MCP endpoint creates a new credential identity on save.
-				// Never retarget an existing id-bound token to an unrelated server.
-				this.mcpReplacementIds = new Map();
 				this.credentials = {};
 				this.store = createStore(this.projection());
 				this.unsubscribe = scope.subscribe(() => {
@@ -378,16 +281,12 @@ window.__ModuleLoader__.load({
 					return;
 				}
 				const seen = new Map();
-				const mcpRows = [];
 				for (const entry of Array.isArray(value.providers) ? value.providers : []) {
-					if (entry?.kind === "mcp" && mcpRef(entry.id) && !mcpRows.some(row => row.id === entry.id)) {
-						mcpRows.push({ ...entry, kind: "mcp", enabled: entry.enabled === true, baseURL: entry.baseURL ?? "" });
-					} else if (PROVIDER_KINDS.includes(entry?.kind) && !seen.has(entry.kind)) {
+					if (PROVIDER_KINDS.includes(entry?.kind) && !seen.has(entry.kind)) {
 						seen.set(entry.kind, { kind: entry.kind, enabled: entry.enabled !== false, baseURL: typeof entry.baseURL === "string" ? entry.baseURL : "" });
 					}
 				}
-				this.queue = [...PROVIDER_KINDS.map((kind) => seen.get(kind) ?? { kind, enabled: false, baseURL: "" }), ...mcpRows];
-				this.mcpReplacementIds.clear();
+				this.queue = PROVIDER_KINDS.map((kind) => seen.get(kind) ?? { kind, enabled: false, baseURL: "" });
 				this.queueDirty = false;
 				this.edits = {};
 				this.keyDrafts = {};
@@ -398,7 +297,7 @@ window.__ModuleLoader__.load({
 
 			/** Ask the credentials domain which references currently hold a value. */
 			async readCredentials() {
-				const refs = this.queue.map((entry) => entry.kind === "mcp" ? mcpRef(entry.id) : KIND_CREDENTIAL_REF[entry.kind]).filter((ref) => typeof ref === "string");
+				const refs = this.queue.map((entry) => KIND_CREDENTIAL_REF[entry.kind]).filter((ref) => typeof ref === "string");
 				try {
 					const response = await this.ctx.remote.credentials.describe(refs);
 					if (!response?.ok) return;
@@ -429,8 +328,8 @@ window.__ModuleLoader__.load({
 			projection() {
 				const availability = {};
 				for (const entry of this.queue) {
-					const ref = entry.kind === "mcp" ? mcpRef(entry.id) : KIND_CREDENTIAL_REF[entry.kind];
-					if (ref === null && entry.kind !== "mcp") {
+					const ref = KIND_CREDENTIAL_REF[entry.kind];
+					if (ref === null) {
 						availability[entryKey(entry)] = { state: "anonymous" };
 						continue;
 					}
@@ -451,7 +350,6 @@ window.__ModuleLoader__.load({
 					queue: this.queue.map((entry) => ({
 						...entry,
 						draft: this.keyDrafts[entryKey(entry)] ?? "",
-						...(entry.kind === "mcp" ? { endpointChanged: (this.layers().value.providers ?? []).some(saved => saved.kind === "mcp" && saved.id === entry.id && saved.baseURL !== entry.baseURL.trim()) } : {}),
 					})), 
 					availability,
 					dirty: this.isDirty(),
@@ -504,36 +402,6 @@ window.__ModuleLoader__.load({
 				this.publish();
 			}
 
-			addMcp() {
-				const taken = new Set([...this.queue.filter(row => row.kind === "mcp").map(row => row.id), ...(this.layers().value.providers ?? []).filter(row => row.kind === "mcp").map(row => row.id), ...this.mcpReplacementIds.values()]);
-				const base = `mcp-${crypto.randomUUID().replaceAll("-", "").slice(0, 16)}`;
-				let id = base;
-				for (let suffix = 1; taken.has(id); suffix++) id = `${base}-${suffix}`;
-				this.queue.push({ kind: "mcp", id, enabled: false, baseURL: "", toolName: "", inputTemplate: '{"query":"{{query}}"}', responseMode: "auto", resultPath: "/results", urlPath: "/url", titlePath: "/title", snippetPath: "/snippet", publishedAtPath: "/publishedAt" });
-				this.queueDirty = true;
-				this.failed = false;
-				this.publish();
-			}
-
-			removeMcp(id) {
-				this.queue = this.queue.filter((entry) => !(entry.kind === "mcp" && entry.id === id));
-				delete this.keyDrafts[id];
-				this.queueDirty = true;
-				this.failed = false;
-				this.publish();
-			}
-
-			setMcpField(id, name, value) {
-				if (name === "baseURL") { this.setBaseURL(id, value); return; }
-				if (!MCP_FIELDS.includes(name)) return;
-				const entry = this.queue.find((row) => row.kind === "mcp" && row.id === id);
-				if (!entry) return;
-				entry[name] = value;
-				this.queueDirty = true;
-				this.failed = false;
-				this.publish();
-			}
-
 			setKeyDraft(kind, text) {
 				this.keyDrafts[kind] = text;
 				this.failed = false;
@@ -564,15 +432,6 @@ window.__ModuleLoader__.load({
 				for (const name of [...NUMERIC_FIELDS, ...BOOLEAN_FIELDS, "mode"]) {
 					if (!Object.hasOwn(this.edits, name)) continue;
 					if (!this.coerce(name).ok) return name;
-				}
-				for (const entry of this.queue.filter(row => row.kind === "mcp")) {
-					if (!mcpRef(entry.id) || !["auto", "structured", "text-json", "text"].includes(entry.responseMode ?? "auto")) return "mcp";
-					try {
-						const template = JSON.parse(entry.inputTemplate ?? "");
-						if (!template || typeof template !== "object" || Array.isArray(template)) return "mcp";
-					} catch { return "mcp"; }
-					if (["resultPath", "urlPath", "titlePath", "snippetPath", "publishedAtPath"].some(key => typeof entry[key] !== "string" || (entry[key] !== "" && !entry[key].startsWith("/")))) return "mcp";
-					if (entry.enabled && (!entry.toolName?.trim() || !validMcpUrl(entry.baseURL))) return "mcp";
 				}
 				return undefined;
 			}
@@ -606,30 +465,12 @@ window.__ModuleLoader__.load({
 				}
 			}
 
-			replacementFor(entry) {
-				if (entry.kind !== "mcp") return null;
-				const saved = (this.layers().value.providers ?? []).find(row => row.kind === "mcp" && row.id === entry.id);
-				if (!saved || saved.baseURL === entry.baseURL.trim()) return entry.id;
-				if (this.mcpReplacementIds.has(entry.id)) return this.mcpReplacementIds.get(entry.id);
-				const taken = new Set([
-					...this.queue.filter(row => row.kind === "mcp").map(row => row.id),
-					...(this.layers().value.providers ?? []).filter(row => row.kind === "mcp").map(row => row.id),
-					...this.mcpReplacementIds.values(),
-				]);
-				const base = `mcp-${crypto.randomUUID().replaceAll("-", "").slice(0, 16)}`;
-				let candidate = base;
-				for (let suffix = 1; taken.has(candidate); suffix++) candidate = `${base}-${suffix}`;
-				this.mcpReplacementIds.set(entry.id, candidate);
-				return candidate;
-			}
-
 			async save() {
 				if (this.shell.saving || !this.isDirty() || this.validity() !== undefined) return;
 				this.shell = { ...this.shell, saving: true };
 				this.failed = false;
 				this.publish();
 				let landed = true;
-				const replacements = new Map(this.queue.filter(entry => entry.kind === "mcp").map(entry => [entry.id, this.replacementFor(entry)]));
 
 				// Credentials first: they live outside the section, and a refused write
 				// should not leave the settings half-committed.
@@ -637,7 +478,7 @@ window.__ModuleLoader__.load({
 					const key = entryKey(entry);
 					const draft = this.keyDrafts[key];
 					if (typeof draft !== "string" || draft.trim().length === 0) continue;
-					const ref = entry.kind === "mcp" ? mcpRef(replacements.get(entry.id)) : KIND_CREDENTIAL_REF[entry.kind];
+					const ref = KIND_CREDENTIAL_REF[entry.kind];
 					if (typeof ref !== "string") continue;
 					const outcome = await this.writeSetting(() => this.ctx.remote.credentials.set(ref, draft.trim()));
 					if (outcome) delete this.keyDrafts[key];
@@ -653,12 +494,11 @@ window.__ModuleLoader__.load({
 
 				if (this.queueDirty) {
 					const payload = this.queue
-						.filter((entry) => entry.kind === "mcp" || entry.enabled || entry.baseURL.trim().length > 0)
+						.filter((entry) => entry.enabled || entry.baseURL.trim().length > 0)
 						.map((entry) => ({
 							kind: entry.kind,
 							enabled: entry.enabled,
 							baseURL: entry.baseURL.trim(),
-							...(entry.kind === "mcp" ? { id: replacements.get(entry.id), ...Object.fromEntries(MCP_FIELDS.map(name => [name, entry[name] ?? ""])) } : {}),
 						}));
 					if (!await this.writeSetting(() => this.scope.set("providers", payload))) landed = false;
 				}
@@ -703,9 +543,6 @@ window.__ModuleLoader__.load({
 					setEnabled: (kind, enabled) => this.setEnabled(kind, enabled),
 					setBaseURL: (kind, text) => this.setBaseURL(kind, text),
 					setKeyDraft: (kind, text) => this.setKeyDraft(kind, text),
-					addMcp: () => this.addMcp(),
-					removeMcp: (id) => this.removeMcp(id),
-					setMcpField: (id, name, text) => this.setMcpField(id, name, text),
 				};
 			}
 
@@ -794,19 +631,6 @@ window.__ModuleLoader__.load({
 			},
 				h("circle", { cx: "12", cy: "12", r: "3" }),
 				h("path", { d: "M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z" })
-			);
-		}
-
-		function IconTrash({ size = 14, color = "currentColor", style = {} }) {
-			return h("svg", {
-				width: size, height: size, viewBox: "0 0 24 24", fill: "none",
-				stroke: color, strokeWidth: "2", strokeLinecap: "round", strokeLinejoin: "round",
-				style: { display: "block", flexShrink: 0, ...style }
-			},
-				h("polyline", { points: "3 6 5 6 21 6" }),
-				h("path", { d: "M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" }),
-				h("line", { x1: "10", y1: "11", x2: "10", y2: "17" }),
-				h("line", { x1: "14", y1: "11", x2: "14", y2: "17" })
 			);
 		}
 
@@ -905,8 +729,6 @@ window.__ModuleLoader__.load({
 			historyCell: { borderBottom: "1px solid var(--dsw-alias-border-l1)", padding: "7px 10px", height: "34px", boxSizing: "border-box", textAlign: "left", whiteSpace: "nowrap", verticalAlign: "middle" },
 			historyHead: { position: "sticky", top: 0, background: "var(--dsw-alias-bg-base)", fontWeight: 600, color: "var(--dsw-alias-label-secondary)" },
 			historyLine: { fontSize: "12px", lineHeight: 1.5, color: "var(--dsw-alias-label-secondary)", margin: "2px 0" },
-			mcpGrid: { display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(min(100%, 240px), 1fr))", gap: "10px" },
-			mcpPanel: { display: "grid", gap: "10px", minWidth: 0 },
 			disclosure: { cursor: "pointer", padding: "8px 0", boxSizing: "border-box", color: "var(--dsw-alias-label-primary)", outlineColor: "var(--dsw-alias-brand-primary)", fontSize: "13px" },
 			// Settings policy card groups with strict desktop grid alignment
 			policyCard: { background: "var(--dsw-alias-bg-layer-1)", border: "1px solid rgba(255, 255, 255, 0.12)", borderRadius: "8px", overflow: "hidden", marginBottom: "14px", boxSizing: "border-box" },
@@ -1180,7 +1002,7 @@ window.__ModuleLoader__.load({
 								pointerEvents: (hovered || open) ? "auto" : "none",
 								...(open ? styles.iconBtnActive : {}),
 							},
-							title: open ? t("mcpCollapse") : t("configure"),
+							title: open ? t("collapse") : t("configure"),
 							"aria-expanded": open,
 							"aria-controls": `aws-source-${entry.kind}`,
 							onClick: () => setOpen(!open),
@@ -1214,171 +1036,6 @@ window.__ModuleLoader__.load({
 								disabled: disabled || state.writable === false,
 								onChange: text => props.onKey(text),
 							}),
-						),
-					),
-				) : null,
-			);
-		}
-
-		function McpField({ label, value, onChange, placeholder, disabled, multiline = false, type = "text" }) {
-			return h("label", { style: { display: "block", minWidth: 0 } },
-				h("span", { style: { ...styles.label, display: "block", marginBottom: "4px" } }, label),
-				multiline
-					? h("textarea", { style: styles.textarea, value: value ?? "", placeholder, disabled, spellCheck: false, onChange: event => onChange(event.target.value) })
-					: type === "password"
-						? h(PasswordInput, { value, placeholder, disabled, onChange })
-						: h("input", { type, style: { ...styles.input, width: "100%" }, value: value ?? "", placeholder, disabled, spellCheck: false, autoComplete: undefined, onChange: event => onChange(event.target.value) }),
-			);
-		}
-
-		function McpRow({ t, entry, availability, disabled, canDiscover, onField, onToggle, onKey, onRemove }) {
-			const state = availability[entry.id] ?? { state: "unset" };
-			const [open, setOpen] = React.useState(!entry.baseURL || !entry.toolName || entry.endpointChanged);
-			const [hovered, setHovered] = React.useState(false);
-			const [tools, setTools] = React.useState({ forKey: null, list: [], loading: false, error: null, empty: false });
-			const field = (key) => (text) => onField(entry.id, key, text);
-			const forKey = `${entry.baseURL.trim()}\n${entry.draft ?? ""}`;
-			const discovered = tools.forKey === forKey ? tools : { list: [], loading: false, error: null, empty: false };
-			const discover = async () => {
-				const requestKey = forKey;
-				setTools({ forKey: requestKey, list: [], loading: true, error: null, empty: false });
-				try {
-					const response = await fetch("/api/agent-web-search/mcp-tools", {
-						method: "POST", credentials: "same-origin", cache: "no-store",
-						headers: { "content-type": "application/json" },
-						body: JSON.stringify({ id: entry.id, baseURL: entry.baseURL.trim(), ...(entry.draft ? { token: entry.draft } : {}) }),
-					});
-					const body = await response.json();
-					if (!response.ok) {
-						const reason = ["auth", "timeout", "invalid-endpoint", "upstream-http"].includes(body?.reason) ? body.reason : "unavailable";
-						setTools({ forKey: requestKey, list: [], loading: false, error: reason, httpStatus: Number.isInteger(body?.upstreamStatus) ? body.upstreamStatus : null, empty: false });
-						return;
-					}
-					if (!Array.isArray(body.tools)) throw new Error("invalid tool list");
-					const list = body.tools.filter(item => typeof item?.name === "string");
-					setTools({ forKey: requestKey, list, loading: false, error: null, empty: list.length === 0 });
-				} catch { setTools({ forKey: requestKey, list: [], loading: false, error: "unavailable", empty: false }); }
-			};
-			const toolMissing = discovered.list.length > 0 && entry.toolName && !discovered.list.some(item => item.name === entry.toolName);
-			const diagnostic = discovered.error === "upstream-http" && discovered.httpStatus
-				? `${t("mcpDiscoverHttp")} HTTP ${discovered.httpStatus}. ${t("mcpDiscoverFailed")}`
-				: t({ auth: "mcpDiscoverAuth", timeout: "mcpDiscoverTimeout", "invalid-endpoint": "mcpDiscoverInvalid" }[discovered.error] ?? "mcpDiscoverFailed");
-
-			return h("div", {
-				style: styles.entry,
-				onMouseEnter: () => setHovered(true),
-				onMouseLeave: () => setHovered(false),
-			},
-				h("div", {
-					className: "aws-interactive-row",
-					style: {
-						...styles.settingRow,
-						background: hovered ? "var(--dsw-alias-bg-layer-2)" : "transparent",
-						cursor: "pointer",
-						borderBottom: open ? "1px solid var(--dsw-alias-border-l1)" : "none",
-					},
-					onClick: (event) => {
-						if (event.target.tagName !== "INPUT" && event.target.tagName !== "BUTTON" && !event.target.closest("button")) {
-							setOpen(!open);
-						}
-					},
-				},
-					h("div", {
-						style: { display: "flex", alignItems: "center", gap: "10px", minWidth: 0, flex: 1 },
-					},
-						h("input", {
-							type: "checkbox",
-							className: "aws-checkbox",
-							checked: entry.enabled,
-							disabled,
-							style: { cursor: disabled ? "default" : "pointer" },
-							onClick: (e) => e.stopPropagation(),
-							onChange: event => onToggle(entry.id, event.target.checked),
-						}),
-						h("span", {
-							className: "aws-row-title",
-							style: { ...styles.entryName, cursor: "pointer", userSelect: "none" },
-							title: entry.toolName || entry.baseURL || undefined,
-							onClick: () => setOpen(!open),
-						}, entry.toolName || t("mcpNew")),
-					),
-					h("div", {
-						style: { display: "flex", alignItems: "center", gap: "8px", flexShrink: 0 },
-						onClick: (e) => e.stopPropagation(),
-					},
-						h("div", {
-							style: {
-								display: "inline-flex",
-								alignItems: "center",
-								gap: "2px",
-								opacity: (hovered || open) ? 1 : 0,
-								pointerEvents: (hovered || open) ? "auto" : "none",
-								transition: "opacity 0.15s ease",
-							},
-						},
-							h("button", {
-								type: "button",
-								className: "aws-icon-btn",
-								style: { ...styles.iconBtn, ...(open ? styles.iconBtnActive : {}) },
-								title: open ? t("mcpCollapse") : t("mcpExpand"),
-								"aria-expanded": open,
-								"aria-controls": `aws-mcp-${entry.id}`,
-								onClick: () => setOpen(!open),
-							}, h(IconSettings, { size: 14, color: open ? "var(--dsw-alias-brand-primary)" : undefined })),
-							h("button", {
-								type: "button",
-								className: "aws-icon-btn aws-icon-btn-danger",
-								style: { ...styles.iconBtn, color: "var(--dsw-alias-state-error-primary)" },
-								title: t("mcpRemove"),
-								disabled,
-								onClick: () => onRemove(entry.id),
-							}, h(IconTrash, { size: 14 })),
-						),
-						state.state === "configured" && !entry.endpointChanged
-							? h("span", { style: styles.badgeOk }, h(StatusDot, { color: "var(--dsw-alias-state-success-primary)" }), t("keyConfigured"))
-							: h("span", { style: styles.badge }, h(StatusDot, { color: "var(--dsw-alias-label-secondary)" }), t("keyUnset")),
-					),
-				),
-				open ? h("div", { id: `aws-mcp-${entry.id}`, style: { ...styles.panel, margin: "8px 14px 12px" } },
-					h("h4", { style: styles.sectionHead }, t("mcpConnect")),
-					h("div", { style: styles.mcpGrid },
-						h(McpField, { label: t("mcpUrl"), type: "url", value: entry.baseURL, placeholder: "https://example.com/mcp", disabled, onChange: field("baseURL") }),
-						h(McpField, { label: t("mcpToken"), type: "password", value: entry.draft, placeholder: t("keyPlaceholder"), disabled: disabled || state.writable === false, onChange: text => onKey(entry.id, text) }),
-					),
-					entry.endpointChanged ? h("p", { style: { ...styles.notice, margin: 0 } }, t("mcpCredentialScope")) : null,
-					h("div", { style: { display: "flex", alignItems: "center", gap: "8px", flexWrap: "wrap", marginTop: "2px" } },
-						h("button", { type: "button", className: "aws-btn", style: styles.button, disabled: disabled || !canDiscover || discovered.loading, onClick: discover }, discovered.loading ? t("mcpDiscoverLoading") : t("mcpDiscover")),
-						!entry.baseURL.trim() ? h("span", { style: styles.notice }, t("mcpDiscoverHint")) : null,
-						entry.baseURL.trim() && !canDiscover ? h("span", { role: "alert", style: styles.fieldError }, t("mcpDiscoverInvalid")) : null,
-						discovered.loading ? h("span", { role: "status", style: styles.notice }, t("mcpDiscoverLoading")) : null,
-						discovered.error ? h("span", { role: "alert", style: styles.fieldError }, diagnostic) : null,
-						discovered.empty ? h("span", { role: "status", style: styles.notice }, t("mcpDiscoverEmpty")) : null,
-						discovered.list.length ? h("span", { role: "status", style: styles.notice }, `${discovered.list.length} ${t("mcpToolsFound")}`) : null,
-					),
-					h("h4", { style: { ...styles.sectionHead, marginTop: "6px" } }, t("mcpChoose")),
-					discovered.list.length ? h("label", { style: { display: "block" } },
-						h("span", { style: { ...styles.label, display: "block", marginBottom: "4px" } }, t("mcpName")),
-						h("select", { style: { ...styles.select, width: "100%" }, value: toolMissing ? "" : entry.toolName, disabled, onChange: event => field("toolName")(event.target.value) },
-							h("option", { value: "" }, t("mcpName")),
-							discovered.list.map(item => h("option", { key: item.name, value: item.name }, item.description ? `${item.name} — ${item.description.slice(0, 100)}` : item.name))),
-					) : h(McpField, { label: t("mcpName"), value: entry.toolName, placeholder: "webSearchPrime", disabled, onChange: field("toolName") }),
-					toolMissing ? h("p", { role: "alert", style: styles.fieldError }, t("mcpToolMissing")) : null,
-					h("details", { style: { borderTop: "1px solid var(--dsw-alias-border-l1)", paddingTop: "4px" } },
-						h("summary", { className: "aws-disclosure", style: styles.disclosure }, t("mcpAdvanced")),
-						h("div", { style: styles.mcpPanel },
-							h("div", null, h(McpField, { label: t("mcpInput"), value: entry.inputTemplate, disabled, multiline: true, onChange: field("inputTemplate") }), h("p", { style: styles.hint }, t("mcpInputHint"))),
-							h("label", { style: { display: "block" } },
-								h("span", { style: { ...styles.label, display: "block", marginBottom: "4px" } }, t("mcpMode")),
-								h("select", { style: { ...styles.select, width: "100%" }, value: entry.responseMode ?? "auto", disabled, onChange: event => field("responseMode")(event.target.value) },
-									["auto", "structured", "text-json", "text"].map((mode, index) => h("option", { key: mode, value: mode }, t(["mcpAuto", "mcpStructured", "mcpJson", "mcpText"][index]))),
-								),
-							),
-							entry.responseMode === "text" ? null : h("div", null,
-								h("p", { style: styles.hint }, t("mcpPointerHint")),
-								h("div", { style: styles.mcpGrid },
-									[["resultPath", "mcpResultPath"], ["urlPath", "mcpUrlPath"], ["titlePath", "mcpTitlePath"], ["snippetPath", "mcpSnippetPath"], ["publishedAtPath", "mcpDatePath"]].map(([name, label]) => h(McpField, { key: name, label: t(label), value: entry[name], disabled, onChange: field(name) })),
-								),
-							),
 						),
 					),
 				) : null,
@@ -1484,48 +1141,19 @@ window.__ModuleLoader__.load({
 					h("h2", { style: styles.pageTitle }, t("title")),
 				),
 				h("nav", { style: styles.tabs, "aria-label": t("title") },
-					[["sources", "tabSources"], ["mcp", "tabMcp"], ["policy", "tabPolicy"], ["activity", "tabActivity"]].map(([id, label]) => h("button", { key: id, type: "button", className: "aws-tab", style: { ...styles.tab, ...(tab === id ? styles.tabActive : {}) }, "aria-current": tab === id ? "page" : undefined, onClick: () => setTab(id) }, t(label))),
+					[["sources", "tabSources"], ["policy", "tabPolicy"], ["activity", "tabActivity"]].map(([id, label]) => h("button", { key: id, type: "button", className: "aws-tab", style: { ...styles.tab, ...(tab === id ? styles.tabActive : {}) }, "aria-current": tab === id ? "page" : undefined, onClick: () => setTab(id) }, t(label))),
 				),
 				tab === "sources" ? h("section", { style: styles.section },
 					h("div", { style: styles.policyCard },
 						h("div", { style: { ...styles.policyCardHeader, display: "flex", alignItems: "center", justifyContent: "space-between" } },
 							h("h4", { style: styles.policyCardTitle }, t("upstreams")),
-							h("span", { style: styles.headerBadge }, `${state.queue.filter(entry => entry.kind !== "mcp" && entry.enabled).length} / ${state.queue.filter(entry => entry.kind !== "mcp").length} ${t("enabled")}`),
+							h("span", { style: styles.headerBadge }, `${state.queue.filter(entry => entry.enabled).length} / ${state.queue.length} ${t("enabled")}`),
 						),
-						state.queue.filter(entry => entry.kind !== "mcp").map(entry => h(UpstreamRow, {
+						state.queue.map(entry => h(UpstreamRow, {
 							key: entry.kind, t, entry, availability: state.availability, disabled,
 							onToggle: enabled => props.setEnabled(entry.kind, enabled), onBaseURL: text => props.setBaseURL(entry.kind, text), onKey: text => props.setKeyDraft(entry.kind, text)
 						})),
 						h("div", { style: styles.modeNotice }, t("upstreamsHint")),
-					),
-				) : null,
-				tab === "mcp" ? h("section", { style: styles.section },
-					h("div", { style: styles.policyCard },
-						h("div", { style: { ...styles.policyCardHeader, display: "flex", alignItems: "center", justifyContent: "space-between" } },
-							h("h4", { style: styles.policyCardTitle }, t("tabMcp")),
-							h("div", { style: { display: "flex", alignItems: "center", gap: "8px" } },
-								h("span", { style: styles.headerBadge }, `${state.queue.filter(entry => entry.kind === "mcp" && entry.enabled).length} ${t("enabled")}`),
-								h("button", {
-									type: "button",
-									className: "aws-header-btn",
-									style: {
-										...styles.headerBtn,
-										cursor: disabled ? "default" : "pointer",
-										opacity: disabled ? 0.45 : 1,
-									},
-									disabled,
-									onClick: props.addMcp,
-								}, `+ ${t("mcpAdd")}`),
-							),
-						),
-						state.queue.filter(entry => entry.kind === "mcp").length === 0
-							? h("div", { style: { padding: "28px 16px", textAlign: "center", color: "var(--dsw-alias-label-secondary)", fontSize: "13px" } }, t("mcpEmpty"))
-							: null,
-						state.queue.filter(entry => entry.kind === "mcp").map(entry => h(McpRow, {
-							key: entry.id, t, entry, availability: state.availability, disabled, canDiscover: validMcpUrl(entry.baseURL),
-							onField: props.setMcpField, onToggle: props.setEnabled, onKey: props.setKeyDraft, onRemove: props.removeMcp
-						})),
-						h("div", { style: styles.modeNotice }, t("mcpTrust")),
 					),
 				) : null,
 				tab === "policy" ? h("section", { style: styles.section },
@@ -1624,7 +1252,7 @@ window.__ModuleLoader__.load({
 						state.invalid
 							? h("div", { style: { display: "flex", alignItems: "center", gap: "6px", color: "var(--dsw-alias-state-error-primary)" } },
 								h(IconAlert, { size: 15, color: "var(--dsw-alias-state-error-primary)" }),
-								h("span", { style: styles.fieldError }, state.invalid === "mcp" ? t("mcpInvalid") : t("invalidNumber")),
+								h("span", { style: styles.fieldError }, t("invalidNumber")),
 							)
 							: state.failed
 								? h("div", { style: { display: "flex", alignItems: "center", gap: "6px", color: "var(--dsw-alias-state-error-primary)" } },

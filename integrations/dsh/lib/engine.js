@@ -1,4 +1,3 @@
-import { mcpCredentialRef, searchMcp } from './adapters/mcp.js'
 import { mergeBridgeOutcomes } from './bridge.js'
 
 function timeoutSignal(parent, milliseconds) {
@@ -23,18 +22,6 @@ async function runOne({ entry, query, maxResults, attemptTimeoutMs, signal, reso
   const startedAt = Date.now()
   const attemptSignal = timeoutSignal(signal, attemptTimeoutMs)
   try {
-    if (entry.kind === 'mcp') {
-      const token = await resolveValue(mcpCredentialRef(entry.id), attemptSignal)
-      const search = adapters?.get('mcp')?.search ?? searchMcp
-      const result = await search({ entry, query, maxResults, apiKey: token, signal: attemptSignal })
-      return {
-        result: {
-          sources: result.sources ?? result.results ?? [],
-          ...(result.content !== undefined ? { content: result.content } : result.answer ? { content: result.answer } : {}),
-        },
-        elapsedMs: Date.now() - startedAt,
-      }
-    }
     const adapter = adapters?.get(entry.kind)
     if (adapter) {
       if (adapter.anonymousOk === false && !(await resolveValue(adapter.credentialRef, attemptSignal))) {
@@ -59,11 +46,11 @@ async function runOne({ entry, query, maxResults, attemptTimeoutMs, signal, reso
 }
 
 function entryLabel(entry) {
-  return entry.kind === 'mcp' ? `mcp:${entry.id}` : entry.kind
+  return entry.kind
 }
 
 function attemptKind(entry) {
-  return entry.kind === 'mcp' ? 'mcp' : entry.kind
+  return entry.kind
 }
 
 export async function runSearch({
@@ -148,8 +135,6 @@ function timeoutSignalError() {
   error.code = 'timeout'
   return error
 }
-
-export { mcpCredentialRef }
 
 export function mergeResults(outcomes, dedupeByUrl, maxResults) {
   return mergeBridgeOutcomes(outcomes.map(item => ({
