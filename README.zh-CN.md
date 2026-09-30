@@ -655,7 +655,7 @@ Hermes 也可以不安装原生插件，而是通过通用 MCP 集成连接本�
 dsh plugin --profile <profile> add github:JerryLiu369/agent-web-search
 ```
 
-该插件会有意替换 DSH 内置的 `web_search` 工具 —— 同一把工具、同一套提示词、同一个引用卡片 —— 除此之外不需要任何改动。装完请重启 DSH。桌面版的 profile 由 Electron 自己管，只能手工落盘，步骤见 [`integrations/dsh/README.md`](https://github.com/JerryLiu369/agent-web-search/blob/main/integrations/dsh/README.md)。
+该插件会有意替换 DSH 原生 `web_search` seam 背后的实现 —— 保持同一个模型可见工具名、提示词、规范化来源和引用卡片；不会暴露 `mcp__...__web_search` 工具。请把 `agent-web-search-mcp` Python 命令安装在 DSH 所用的同一环境中，装完重启 DSH。桥接层把内置 Provider 委托给 Python 命令，同时保留 DSH 原生设置、历史、诊断和自定义 MCP 来源路径。桌面版的 profile 由 Electron 自己管，只能手工落盘，步骤见 [`integrations/dsh/README.md`](https://github.com/JerryLiu369/agent-web-search/blob/main/integrations/dsh/README.md)。
 
 DSH 也可以不装原生插件，而是用自带的 MCP 客户端连接本项目。
 

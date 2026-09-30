@@ -734,10 +734,14 @@ Install the native plugin directly from GitHub:
 dsh plugin --profile <profile> add github:JerryLiu369/agent-web-search
 ```
 
-The plugin intentionally replaces DSH's built-in `web_search` tool — same tool
-name, same prompt, same citation UI — so enabling it needs nothing else. Restart
-DSH afterwards. The desktop app manages its own profile, so there the plugin has
-to be placed by hand; the steps are in
+The plugin intentionally replaces the implementation behind DSH's native
+`web_search` seam — same model-facing tool name, prompt, normalized sources, and
+citation UI. It does not expose an `mcp__...__web_search` tool. Install the
+`agent-web-search-mcp` Python command in the same environment as DSH, then
+restart DSH; the bridge delegates built-in provider work to that command while
+DSH retains its native settings, history, diagnostics, and custom MCP-source
+path. The desktop app manages its own profile, so there the plugin has to be
+placed by hand; the steps are in
 [`integrations/dsh/README.md`](https://github.com/JerryLiu369/agent-web-search/blob/main/integrations/dsh/README.md).
 
 DSH can also connect through its built-in MCP client instead of the native

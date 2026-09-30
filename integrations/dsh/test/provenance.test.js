@@ -1,50 +1,32 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
-import { mergeResults, runSearch } from '../lib/engine.js'
+import { mergeBridgeOutcomes, mapProviderPayload, parseToolEnvelope } from '../lib/bridge.js'
 
-const hit = (url, title = 'Original page', description = 'Original summary') => ({ url, title, description })
-
-test('final result titles name every contributing upstream without changing URL or summary', () => {
-  const merged = mergeResults([
-    { kind: 'exa', results: [hit('https://example.org/article')] },
-    { kind: 'deepseek', results: [hit('https://example.org/article', 'Later title', 'Later summary')] },
-    { kind: 'ddgs', results: [hit('https://example.org/other', 'Other page')] },
-  ], true, 8)
-  assert.equal(merged.sources.length, 2)
-  assert.deepEqual(merged.sources[0].providers, ['exa', 'deepseek'])
-  assert.equal(merged.sources[0].title, '【来源：Exa、DeepSeek】 Original page')
-  assert.equal(merged.sources[0].url, 'https://example.org/article')
-  assert.equal(merged.sources[0].snippet, 'Original summary')
-  assert.equal(merged.sources[1].title, '【来源：DuckDuckGo】 Other page')
-  assert.equal('sourceLabels' in merged.sources[0], false)
+test('Python provider payload maps to native DSH citation sources', () => {
+  const result = mapProviderPayload({
+    providers: {
+      ddgs: { results: [{ title: 'Page', url: 'https://example.org/a', description: 'Summary' }] },
+    },
+  }, 4)
+  assert.deepEqual(result.sources, [{
+    title: '【来源：DuckDuckGo】 Page', url: 'https://example.org/a', snippet: 'Summary',
+  }])
 })
 
-test('without deduplication, each copy keeps only its own source label', () => {
-  const merged = mergeResults([
-    { kind: 'exa', results: [hit('https://example.org/shared')] },
-    { kind: 'deepseek', results: [hit('https://example.org/shared')] },
-  ], false, 8)
-  assert.deepEqual(merged.sources.map(source => source.title), [
-    '【来源：Exa】 Original page', '【来源：DeepSeek】 Original page',
-  ])
+test('bridge aggregation preserves maxResults and URL deduplication', () => {
+  const result = mergeBridgeOutcomes([
+    { sources: [{ title: 'A', url: 'https://example.org/a', provider: 'ddgs' }] },
+    { sources: [{ title: 'duplicate', url: 'https://example.org/a/', provider: 'exa' }, { title: 'B', url: 'https://example.org/b', provider: 'exa' }] },
+  ], 2, true)
+  assert.deepEqual(result.sources.map(source => source.url), ['https://example.org/a', 'https://example.org/b'])
+  assert.equal(result.sources.length, 2)
 })
 
-test('two MCP sources with the same URL retain separate trusted tool identities', () => {
-  const merged = mergeResults([
-    { kind: 'mcp', sourceId: 'mcp-first', toolName: 'webSearchPrime', results: [hit('https://example.org/shared', '')] },
-    { kind: 'mcp', sourceId: 'mcp-second', toolName: 'webSearchPrime', results: [hit('https://example.org/shared')] },
-  ], true, 8)
-  assert.equal(merged.sources.length, 1)
-  assert.equal(merged.sources[0].title, '【来源：MCP: webSearchPrime (mcp-first)、MCP: webSearchPrime (mcp-second)】')
-})
-
-test('answer-only upstream remains visibly attributed when it is the only answer', async () => {
-  const result = await runSearch({
-    mode: 'fallback', providers: [{ kind: 'deepseek', enabled: true }],
-    adapters: new Map([['deepseek', { anonymousOk: true, credentialRef: null, defaultBaseURL: '', search: async () => ({ results: [], answer: 'Verified model answer.' }) }]]),
-    query: 'question', maxResults: 3, resolveValue: async () => undefined,
-    attemptTimeoutMs: 2000, totalTimeoutMs: 4000, dedupeByUrl: true, includeAnswer: true,
+test('malformed and provider-error MCP results are sanitized', () => {
+  assert.throws(() => parseToolEnvelope({ result: { content: [{ type: 'text', text: 'not-json' }] } }), error => error.code === 'malformed_result')
+  assert.throws(() => parseToolEnvelope({ result: { isError: true, content: [{ type: 'text', text: JSON.stringify({ error: { code: 'all_providers_failed', provider_errors: { ddgs: 'ddgs RuntimeError' } } }) }] } }), error => {
+    assert.equal(error.code, 'all_providers_failed')
+    assert.deepEqual(error.providerErrors, { ddgs: 'ddgs RuntimeError' })
+    return true
   })
-  assert.equal(result.sources.length, 0)
-  assert.equal(result.content, '【来源：DeepSeek】\nVerified model answer.')
 })

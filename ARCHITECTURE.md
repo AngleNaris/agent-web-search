@@ -22,6 +22,16 @@ Agent Web Search is one provider-neutral search core with thin adapters:
 The adapters must not implement their own provider dispatch, response models,
 tool schema, or failure semantics.
 
+The DeepSeek Harness integration is a product-boundary adapter over this same
+core. It registers one native `ctx.web` provider and keeps DSH's model-facing
+`web_search` tool, source rendering, citation cards, settings, history,
+diagnostics, and custom MCP-source path. Built-in provider attempts are
+delegated to a short-lived `agent-web-search-mcp` stdio child that calls only
+the fixed `web_search` operation; the bridge never registers an
+`mcp__...__web_search` model tool. DSH-only fanout/fallback orchestration and
+custom MCP-source handling remain at the seam because those controls are not
+part of the Python public MCP response.
+
 Each public provider response contains at most `answer` and `results`; `answer`
 is omitted when the provider produces no prose. `results`
 is the sole normalized source list for every provider. Model-backed providers
@@ -61,6 +71,9 @@ payload and the process exits with status 1. Argument errors use status 2.
 - `agent_web_search.mcp_http:create_http_app` exposes the ASGI application for
   serverless platforms.
 - The Hermes plugin and Python API call the same `SearchEngine` directly.
+- The DSH provider is another thin adapter: it maps live DSH credentials and
+  provider selection into the Python MCP request and maps normalized results
+  back to the DSH web-provider contract.
 
 MCP stdio and MCP HTTP expose the same `web_search` tool, input schema, output
 shape, provider selection, partial-failure behavior, and
