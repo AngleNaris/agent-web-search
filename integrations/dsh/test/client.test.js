@@ -10,13 +10,31 @@ const React = {
   useEffect: () => {},
 }
 const all = node => Array.isArray(node) ? node.flatMap(all) : !node || typeof node !== 'object' ? [] : [node, ...(node.children ?? []).flatMap(all)]
+const strings = node => all(node).flatMap(entry => (entry.children ?? []).filter(child => typeof child === 'string'))
 
-function load(fetchImpl = () => { throw new Error('unexpected fetch') }) {
+/**
+ * Stand-in for DSH's own web card. The harness records elements instead of
+ * rendering them, so the shipped component is represented as a host tag: what
+ * gets asserted is the props we hand it, which is the part this bundle owns
+ * (the shipped component renders itself, and DSH already tests that).
+ */
+const primitives = {
+  WebBlock: 'ds-web-block',
+  IconGlobeOutlineRegular: 'ds-globe-icon',
+}
+
+function load(fetchImpl = () => { throw new Error('unexpected fetch') }, options = {}) {
   let mod
   runInNewContext(readFileSync(file, 'utf8'), {
     window: { __ModuleLoader__: { load: definition => { mod = definition.factory(name => {
-      assert.equal(name, 'react')
-      return React
+      if (name === 'react') return React
+      if (name === '@deepseek-ai/dsh-client-ui-primitives') {
+        // A deployment whose client loader does not register the package must not
+        // break the rest of the client half.
+        if (options.noPrimitives === true) throw new Error(`unregistered client module: ${name}`)
+        return primitives
+      }
+      throw new Error(`unexpected client module: ${name}`)
     }) } } },
     crypto: { randomUUID: () => '12345678-abcd-4def-8000-123456789012' },
     URL, Object, Set, Map, Promise, console, fetch: fetchImpl,
@@ -27,7 +45,7 @@ function load(fetchImpl = () => { throw new Error('unexpected fetch') }) {
 function mounted(fetchImpl, options = {}) {
   const requests = []
   const credentialsWrites = []
-  const plugin = load(fetchImpl)
+  const plugin = load(fetchImpl, options)
   const registrations = []
   const writes = []
   const value = {
@@ -43,7 +61,7 @@ function mounted(fetchImpl, options = {}) {
   }
   const ctx = {
     locale: { bind: () => key => key, register: () => () => {} },
-    configForms: { get: () => scope, whileServed: (_, cb) => cb() },
+    configForms: { get: () => scope, whileServed: (_, cb) => (options.served === false ? undefined : cb()) },
     effect: cb => cb(),
     slots: { inject: (_, cb) => cb(), register: (definition, component) => {
       registrations.push({ definition, component })
@@ -55,7 +73,11 @@ function mounted(fetchImpl, options = {}) {
     } },
   }
   plugin.apply(ctx)
-  return { registrations, injected: registrations[0].definition.inject(), writes, requests, credentialsWrites }
+  // Registration order is not part of the contract: the settings section is the
+  // one that exposes `inject`, and the web row may be registered before it. When
+  // the namespace is not served there is no section at all.
+  const section = registrations.find(item => item.definition.name === 'settings.section')
+  return { registrations, injected: section?.definition.inject(), writes, requests, credentialsWrites }
 }
 
 function view(registration, injected, tab, snapshot) {
@@ -68,16 +90,18 @@ function view(registration, injected, tab, snapshot) {
 
 test('retired sources disappear from the queue and the sources tab', async () => {
   const { registrations, injected } = mounted()
-  assert.deepEqual(registrations.map(item => item.definition.name), ['settings.section'])
+  const section = registrations.find(item => item.definition.name === 'settings.section')
+  assert.deepEqual(registrations.map(item => item.definition.name).sort(), ['settings.section', 'tool.call.toolview'])
   assert.equal(injected.hooks.agentWebSearch.getSnapshot().queue.some(item => item.kind === 'retired_source'), false)
-  const sources = view(registrations[0], injected, 'sources', injected.hooks.agentWebSearch.getSnapshot())
+  const sources = view(section, injected, 'sources', injected.hooks.agentWebSearch.getSnapshot())
   assert.equal(all(sources).some(node => node.type?.name === 'UpstreamRow' && node.props.entry.kind === 'retired_source'), false)
   assert.equal(sources.props.style.maxWidth, '920px')
 })
 
 test('activity renders exactly one table row per search call with inline attempts', () => {
   const { registrations, injected } = mounted()
-  const activity = view(registrations[0], injected, 'activity', injected.hooks.agentWebSearch.getSnapshot())
+  const section = registrations.find(item => item.definition.name === 'settings.section')
+  const activity = view(section, injected, 'activity', injected.hooks.agentWebSearch.getSnapshot())
   const panel = all(activity).find(node => node.type?.name === 'SearchHistoryPanel')
   const original = React.useState
   React.useState = initial => [initial && Array.isArray(initial.entries)
@@ -124,4 +148,130 @@ test('tool type/name are staged per upstream and saved only when non-blank', asy
   assert.equal(saved.find(item => item.kind === 'messages').toolType, 'web_search_20250101')
   assert.equal(saved.find(item => item.kind === 'messages').toolName, 'custom_search')
   assert.equal('toolType' in saved.find(item => item.kind === 'responses'), false)
+})
+
+// The shipped web row only builds a citation card when a call carries its own
+// `{ queries }` array, which this plugin deliberately does not use, so the
+// plugin registers its own view for the `web_search` key.
+function webRow(options = {}) {
+  const { registrations } = mounted(undefined, options)
+  const row = registrations.find(item => item.definition.name === 'tool.call.toolview')
+  assert.ok(row, 'expected a tool.call.toolview registration')
+  return row
+}
+
+function renderRow(row, { block, phase = 'result', expanded = true }) {
+  return row.component({
+    t: key => key,
+    block,
+    phase,
+    useDisclosure: () => ({ expanded, toggle: () => {} }),
+  })
+}
+
+function settledBlock(overrides = {}) {
+  return {
+    kind: 'tool-result',
+    callId: 'call_1',
+    call: { name: 'web_search', argsRaw: JSON.stringify({ query: '中文查询', providers: ['ddgs'], max_results: 2 }) },
+    isError: false,
+    content: [{ type: 'text', text: '{"query":"中文查询","providers":{}}' }],
+    meta: {
+      sources: [
+        { url: 'https://example.org/a', title: '【来源：DuckDuckGo】 A', snippet: '摘要 A' },
+        { url: 'https://example.org/b', title: '【来源：DuckDuckGo】 B' },
+      ],
+      truncated: false,
+    },
+    ...overrides,
+  }
+}
+
+test('claims the web_search view so the citation card can render', () => {
+  const row = webRow()
+  assert.equal(row.definition.key, 'web_search')
+  assert.equal(row.definition.locale, 'agent-web-search')
+})
+
+test('the view is registered even while the settings namespace is not served', () => {
+  const { registrations } = mounted(undefined, { served: false })
+  assert.equal(registrations.some(item => item.definition.name === 'tool.call.toolview'), true)
+  assert.equal(registrations.some(item => item.definition.name === 'settings.section'), false)
+})
+
+test('a settled search hands the sources to the shipped web block', () => {
+  const rendered = renderRow(webRow(), { block: settledBlock() })
+  const nodes = all(rendered)
+  const web = nodes.find(node => node.type === 'ds-web-block')
+  assert.ok(web, 'expected the shipped WebBlock to receive the card body')
+  assert.equal(web.props.kind, 'search')
+  assert.equal(web.props.truncated, false)
+  assert.deepEqual(web.props.sources.map(source => source.url), ['https://example.org/a', 'https://example.org/b'])
+  assert.deepEqual(web.props.sources.map(source => source.title), ['【来源：DuckDuckGo】 A', '【来源：DuckDuckGo】 B'])
+  assert.equal(web.props.sources[0].snippet, '摘要 A')
+  // The shipped icon comes from the same package.
+  assert.equal(nodes.some(node => node.type === 'ds-globe-icon'), true)
+  // The row keeps our own title and the call's query, and hides the raw JSON.
+  const text = strings(rendered)
+  assert.equal(text.includes('cardTitle'), true)
+  assert.equal(text.includes('中文查询'), true)
+  assert.equal(text.includes('2 resultUnit'), true)
+  assert.equal(nodes.some(node => node.type === 'pre'), false)
+})
+
+test('the answer is rendered by the row, not handed to the web block', () => {
+  const block = settledBlock()
+  block.meta.answer = '上游成文答案'
+  const rendered = renderRow(webRow(), { block })
+  assert.equal(strings(rendered).includes('上游成文答案'), true)
+  const web = all(rendered).find(node => node.type === 'ds-web-block')
+  // Keeping `answer` out of WebBlock is what lets the search body skip the
+  // conversation namespace's markdown label bundle.
+  assert.equal('answer' in web.props, false)
+})
+
+test('a truncated card keeps the shipped truncation notice', () => {
+  const block = settledBlock()
+  block.meta.truncated = true
+  const rendered = renderRow(webRow(), { block })
+  const web = all(rendered).find(node => node.type === 'ds-web-block')
+  assert.equal(web.props.truncated, true)
+  assert.equal(web.props.labels.sourcesTruncated, 'cardTruncated')
+  assert.equal(web.props.labels.noResults, 'cardEmpty')
+})
+
+test('a failed search falls back to the recorded error text', () => {
+  const block = settledBlock({ isError: true, error: { message: '搜索失败原因' }, meta: undefined })
+  const rendered = renderRow(webRow(), { block })
+  const nodes = all(rendered)
+  const pre = nodes.find(node => node.type === 'pre')
+  assert.ok(pre, 'expected the raw fallback')
+  assert.deepEqual(pre.children, ['搜索失败原因'])
+  assert.equal(strings(rendered).includes('cardFailed'), true)
+})
+
+test('a result without card metadata falls back to the raw output', () => {
+  const block = settledBlock({ meta: undefined })
+  const rendered = renderRow(webRow(), { block })
+  const pre = all(rendered).find(node => node.type === 'pre')
+  assert.ok(pre, 'expected the raw fallback')
+  assert.equal(String(pre.children[0]).includes('"query"'), true)
+  assert.equal(all(rendered).some(node => node.type === 'ds-web-block'), false)
+})
+
+test('a running call renders without arguments or a card', () => {
+  const rendered = renderRow(webRow(), { block: { phase: 'preparing', callId: 'call_1' }, phase: 'preparing', expanded: false })
+  assert.equal(strings(rendered).includes('cardRunning'), true)
+  assert.equal(all(rendered).some(node => node.type === 'pre'), false)
+})
+
+test('the layer still renders the sources when the shipped web block is missing', () => {
+  const rendered = renderRow(webRow({ noPrimitives: true }), { block: settledBlock() })
+  const nodes = all(rendered)
+  assert.equal(nodes.some(node => node.type === 'ds-web-block'), false)
+  assert.deepEqual(
+    nodes.filter(node => node.type === 'a').map(node => node.props.href),
+    ['https://example.org/a', 'https://example.org/b'],
+  )
+  assert.equal(strings(rendered).includes('摘要 A'), true)
 })

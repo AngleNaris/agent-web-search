@@ -121,6 +121,19 @@ cancellation, and other provider failures remain sanitized DSH execution errors;
 upstream response bodies and credentials are never copied into model-visible
 errors or history.
 
+### The citation row
+
+The client half registers its own `tool.call.toolview` for `web_search`, which
+replaces the shipped row for that key. This is not optional decoration: DSH's
+built-in web row builds a citation card only when the *call arguments* carry its
+own `{ queries }` array, and this plugin deliberately keeps the MCP operation's
+`query` argument instead, so the shipped row always declines and the
+conversation falls back to the raw JSON result. The replacement accepts our
+argument shape, and hands the sources to DSH's own `WebBlock` so the citation
+list matches the built-in card; if that client module is not reachable it renders
+the same list with local styles, and for a running call, a failure, or a result
+with no card metadata it shows the same raw text the shipped row would have.
+
 The internal bridge uses local stdio only.
 
 ## Development and verification

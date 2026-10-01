@@ -56,6 +56,11 @@ window.__ModuleLoader__.load({
 			notSelected: "This plugin is not the selected route; its call log will stay unchanged.",
 			unknownRoute: "Unavailable",
 			resultUnit: "results",
+			cardTitle: "Web search",
+			cardRunning: "Searching…",
+			cardFailed: "Search failed",
+			cardEmpty: "No results",
+			cardTruncated: "The source list was cut.",
 			historyHint: "Last 50 calls in this desktop process, one call per row. Scroll the log horizontally for all upstreams. Queries, keys and response bodies are never retained. Refreshes every 5 seconds.",
 			historyEmpty: "No calls recorded yet.",
 			historyError: "Could not read the authenticated call log.",
@@ -137,6 +142,11 @@ window.__ModuleLoader__.load({
 			notSelected: "当前未选中本插件；本插件的调用日志不会增加。",
 			unknownRoute: "不可用",
 			resultUnit: "条结果",
+			cardTitle: "网页搜索",
+			cardRunning: "搜索中…",
+			cardFailed: "搜索失败",
+			cardEmpty: "无结果",
+			cardTruncated: "来源列表已被截断。",
 			historyHint: "本次桌面进程最近 50 次调用，每次一行；横向滚动可查看全部上游。不会保存查询词、密钥或响应正文，每 5 秒刷新。",
 			historyEmpty: "尚无搜索调用记录。",
 			historyError: "无法读取经认证的调用日志。",
@@ -788,6 +798,22 @@ window.__ModuleLoader__.load({
 			modeNotice: { padding: "10px 14px", fontSize: "12px", lineHeight: 1.5, color: "var(--dsw-alias-label-secondary)", background: "var(--dsw-alias-bg-layer-2)", borderTop: "1px solid rgba(255, 255, 255, 0.08)", boxSizing: "border-box" },
 			headerBadge: { display: "inline-flex", alignItems: "center", justifyContent: "center", gap: "5px", fontSize: "12px", height: "26px", padding: "0 10px", borderRadius: "6px", border: "1px solid rgba(255, 255, 255, 0.14)", background: "rgba(255, 255, 255, 0.05)", color: "var(--dsw-alias-label-secondary)", userSelect: "none", boxSizing: "border-box", flexShrink: 0 },
 			headerBtn: { appearance: "none", display: "inline-flex", alignItems: "center", justifyContent: "center", gap: "4px", fontSize: "12px", fontWeight: 500, height: "26px", padding: "0 12px", borderRadius: "6px", border: "1px solid rgba(255, 255, 255, 0.14)", background: "rgba(255, 255, 255, 0.05)", color: "var(--dsw-alias-label-primary)", cursor: "pointer", outlineColor: "var(--dsw-alias-brand-primary)", boxSizing: "border-box", flexShrink: 0, transition: "all 0.15s ease" },
+			// The `web_search` conversation row. The card body itself is DSH's own
+			// WebBlock; these styles are only the row chrome around it.
+			toolRow: { display: "grid", gap: "2px", margin: "4px 0", minWidth: 0 },
+			toolHead: { appearance: "none", width: "100%", display: "flex", alignItems: "center", gap: "8px", minHeight: "30px", padding: "2px 6px", border: "none", borderRadius: "6px", background: "transparent", color: "var(--dsw-alias-label-primary)", font: "inherit", fontSize: "13px", textAlign: "left", cursor: "pointer", outlineColor: "var(--dsw-alias-brand-primary)", boxSizing: "border-box" },
+			toolHeadStatic: { cursor: "default" },
+			toolIcon: { display: "inline-flex", alignItems: "center", flexShrink: 0, color: "var(--dsw-alias-label-secondary)" },
+			toolName: { flexShrink: 0, fontWeight: 500, color: "var(--dsw-alias-label-primary)" },
+			toolQuery: { flex: 1, minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", color: "var(--dsw-alias-label-secondary)" },
+			toolStatus: { flexShrink: 0, fontSize: "12px", color: "var(--dsw-alias-label-secondary)" },
+			toolBody: { minWidth: 0, padding: "4px 6px 6px", display: "grid", gap: "8px" },
+			toolAnswer: { margin: 0, fontSize: "13px", lineHeight: 1.6, color: "var(--dsw-alias-label-primary)", whiteSpace: "pre-wrap", overflowWrap: "anywhere" },
+			toolRaw: { margin: 0, maxHeight: "240px", overflow: "auto", fontSize: "12px", lineHeight: 1.5, fontFamily: "ui-monospace, monospace", color: "var(--dsw-alias-label-secondary)", whiteSpace: "pre-wrap", wordBreak: "break-word" },
+			toolList: { margin: 0, padding: "0 0 0 1.2em", display: "grid", gap: "8px" },
+			toolItem: { display: "grid", gap: "2px", minWidth: 0 },
+			toolLink: { fontSize: "13px", lineHeight: 1.4, color: "var(--dsw-alias-brand-primary)", textDecoration: "none", overflowWrap: "anywhere" },
+			toolSnippet: { margin: 0, fontSize: "12px", lineHeight: 1.5, color: "var(--dsw-alias-label-secondary)", overflowWrap: "anywhere" },
 		};
 
 		/** Modern PC desktop switch component */
@@ -1366,6 +1392,139 @@ window.__ModuleLoader__.load({
 		}
 		//#endregion
 
+		//#region web_search conversation row
+		/**
+		 * DSH's own web card, when this bundle can reach it.
+		 *
+		 * Reusing the shipped `WebBlock` keeps the citation list identical to the
+		 * built-in row instead of approximating it. The guard matters: a client module
+		 * that is not registered must not take the whole client half down with it.
+		 */
+		let webCardParts = null;
+		try {
+			const primitives = require("@deepseek-ai/dsh-client-ui-primitives");
+			// A React element type is a function or a host tag; both are renderable.
+			const renderable = value => typeof value === "function" || typeof value === "string";
+			if (primitives !== null && typeof primitives === "object" && renderable(primitives.WebBlock)) {
+				webCardParts = {
+					WebBlock: primitives.WebBlock,
+					Icon: renderable(primitives.IconGlobeOutlineRegular) ? primitives.IconGlobeOutlineRegular : null,
+				};
+			}
+		} catch {
+			webCardParts = null;
+		}
+
+		/** Parse one tool call's recorded arguments, or null when they are unusable. */
+		function toolArguments(raw) {
+			if (typeof raw !== "string" || raw.trim() === "") return null;
+			try {
+				const value = JSON.parse(raw);
+				return typeof value === "object" && value !== null && !Array.isArray(value) ? value : null;
+			} catch {
+				return null;
+			}
+		}
+
+		/** A settled result's text, for the cases a card cannot render. */
+		function resultText(block) {
+			if (!Array.isArray(block?.content)) return "";
+			return block.content
+				.filter(part => part !== null && typeof part === "object" && part.type === "text" && typeof part.text === "string")
+				.map(part => part.text)
+				.join("\n");
+		}
+
+		/** The card data our Host half persisted, or null when there is none. */
+		function webCard(block) {
+			const meta = block?.meta;
+			if (typeof meta !== "object" || meta === null || Array.isArray(meta)) return null;
+			if (!Array.isArray(meta.sources)) return null;
+			return {
+				answer: typeof meta.answer === "string" && meta.answer !== "" ? meta.answer : undefined,
+				sources: meta.sources
+					.filter(source => source !== null && typeof source === "object" && typeof source.url === "string")
+					.map(source => ({
+						url: source.url,
+						...(typeof source.title === "string" ? { title: source.title } : {}),
+						...(typeof source.snippet === "string" ? { snippet: source.snippet } : {}),
+						...(typeof source.publishedAt === "string" ? { publishedAt: source.publishedAt } : {}),
+					})),
+				truncated: meta.truncated === true,
+			};
+		}
+
+		/**
+		 * The `web_search` conversation row.
+		 *
+		 * The plugin deliberately registers the MCP operation's argument shape
+		 * (`query`), but the shipped row only builds a citation card when a call
+		 * carries its own `{ queries }` array, so it declines and the conversation
+		 * falls back to the raw result text. Registering this keyed view is the
+		 * supported way to claim that key back — the slot contract states that
+		 * registering an occupied key replaces its occupant — and every path below
+		 * degrades to the same raw text the shipped row would have shown, so nothing
+		 * renders worse than before.
+		 */
+		function WebSearchRow(props) {
+			const { t, block, useDisclosure } = props;
+			const settled = typeof block === "object" && block !== null && "kind" in block;
+			const running = !settled;
+			// Arguments live on the call head once the call is dispatched, and on the
+			// block itself while it is still starting.
+			const args = toolArguments(settled ? block.call?.argsRaw : block?.argsRaw);
+			const query = typeof args?.query === "string" ? args.query : "";
+			const failed = settled && block.isError === true;
+			const card = settled && !failed ? webCard(block) : null;
+			const text = settled && !failed ? resultText(block) : "";
+			const failure = failed
+				? (typeof block.error?.message === "string" && block.error.message !== "" ? block.error.message : resultText(block))
+				: "";
+			const raw = failure !== "" ? failure : text;
+			const { expanded, toggle } = useDisclosure();
+			const expandable = !running && (card !== null || raw !== "");
+			const open = expanded && expandable;
+			const status = running
+				? t("cardRunning")
+				: failed
+					? t("cardFailed")
+					: card === null
+						? ""
+						: card.sources.length === 0 && card.answer === undefined
+							? t("cardEmpty")
+							: `${card.sources.length} ${t("resultUnit")}`;
+			// `answer` stays out of WebBlock so the search body never needs the
+			// conversation namespace's markdown label bundle; we render it above.
+			const labels = { noResults: t("cardEmpty"), sourcesTruncated: t("cardTruncated"), markdown: undefined };
+			return h("div", { style: styles.toolRow },
+				h("button", {
+					type: "button",
+					style: expandable ? styles.toolHead : { ...styles.toolHead, ...styles.toolHeadStatic },
+					onClick: expandable ? toggle : undefined,
+					"aria-expanded": expandable ? open : undefined,
+				},
+					h("span", { style: styles.toolIcon }, webCardParts?.Icon ? h(webCardParts.Icon, { size: 14 }) : null),
+					h("span", { style: styles.toolName }, t("cardTitle")),
+					query === "" ? null : h("span", { style: styles.toolQuery }, query),
+					status === "" ? null : h("span", { style: styles.toolStatus }, status),
+				),
+				open ? h("div", { style: styles.toolBody },
+					card !== null && card.answer !== undefined ? h("p", { style: styles.toolAnswer }, card.answer) : null,
+					card === null ? null : webCardParts !== null
+						? h(webCardParts.WebBlock, { kind: "search", sources: card.sources, truncated: card.truncated, labels })
+						: h("ol", { style: styles.toolList },
+							card.sources.map((source, index) => h("li", { key: `${index}:${source.url}`, style: styles.toolItem },
+								h("a", { href: source.url, target: "_blank", rel: "noreferrer", style: styles.toolLink },
+									typeof source.title === "string" && source.title !== "" ? source.title : source.url),
+								typeof source.snippet === "string" && source.snippet !== "" ? h("p", { style: styles.toolSnippet }, source.snippet) : null,
+							)),
+						),
+					card === null && raw !== "" ? h("pre", { style: styles.toolRaw }, raw) : null,
+				) : null,
+			);
+		}
+		//#endregion
+
 		//#region entry
 		/** Required services (cordis fiber inject). */
 		const inject = ["slots", "locale", "remote", "remote.credentials", "configForms"];
@@ -1379,6 +1538,14 @@ window.__ModuleLoader__.load({
 			ctx.effect(() => ctx.remote.$on("credentials/reference-updated", () => {
 				controller.readCredentials();
 			}), "agent-web-search: credential invalidations");
+			ctx.effect(() => {
+				const offRow = ctx.slots.inject("tool.call.toolview", () => ctx.slots.register({
+					name: "tool.call.toolview",
+					key: "web_search",
+					locale: NS,
+				}, WebSearchRow));
+				return () => { offRow(); };
+			}, "agent-web-search: web_search citation row");
 			ctx.effect(() => ctx.configForms.whileServed([NS], () => {
 				const offSection = ctx.slots.inject("settings.section", () => ctx.slots.register({
 					name: "settings.section",
