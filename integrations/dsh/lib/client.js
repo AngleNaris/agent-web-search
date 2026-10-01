@@ -1460,11 +1460,11 @@ window.__ModuleLoader__.load({
 		 * The plugin deliberately registers the MCP operation's argument shape
 		 * (`query`), but the shipped row only builds a citation card when a call
 		 * carries its own `{ queries }` array, so it declines and the conversation
-		 * falls back to the raw result text. Registering this keyed view is the
-		 * supported way to claim that key back — the slot contract states that
-		 * registering an occupied key replaces its occupant — and every path below
-		 * degrades to the same raw text the shipped row would have shown, so nothing
-		 * renders worse than before.
+		 * falls back to the raw result text. Claiming this keyed view is the
+		 * supported way back — the slot contract says to "register at a different
+		 * priority to shadow it (lowest renders)", and -1 beats the shipped 0.
+		 * Every path below degrades to the same raw text the shipped row would have
+		 * shown, so nothing renders worse than before.
 		 */
 		function WebSearchRow(props) {
 			const { t, block, useDisclosure } = props;
@@ -1539,9 +1539,15 @@ window.__ModuleLoader__.load({
 				controller.readCredentials();
 			}), "agent-web-search: credential invalidations");
 			ctx.effect(() => {
+				// The shipped web row keeps key `web_search` at the default priority, and
+				// re-registering the same key at the same priority throws instead of
+				// replacing — the ledger says to "register at a different priority to
+				// shadow it (lowest renders)". -1 wins over the shipped 0 regardless of
+				// which side registers first.
 				const offRow = ctx.slots.inject("tool.call.toolview", () => ctx.slots.register({
 					name: "tool.call.toolview",
 					key: "web_search",
+					priority: -1,
 					locale: NS,
 				}, WebSearchRow));
 				return () => { offRow(); };

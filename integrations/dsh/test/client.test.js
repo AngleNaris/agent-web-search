@@ -191,6 +191,10 @@ test('claims the web_search view so the citation card can render', () => {
   const row = webRow()
   assert.equal(row.definition.key, 'web_search')
   assert.equal(row.definition.locale, 'agent-web-search')
+  // The shipped row keeps this key at priority 0, and re-registering the same
+  // key at the same priority throws — a lower priority is how the slot ledger
+  // says to shadow it, regardless of registration order.
+  assert.equal(row.definition.priority, -1)
 })
 
 test('the view is registered even while the settings namespace is not served', () => {

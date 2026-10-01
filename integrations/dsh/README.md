@@ -123,8 +123,9 @@ errors or history.
 
 ### The citation row
 
-The client half registers its own `tool.call.toolview` for `web_search`, which
-replaces the shipped row for that key. This is not optional decoration: DSH's
+The client half registers its own `tool.call.toolview` for `web_search` at a lower
+slot priority than the shipped row, which is how the slot ledger says to shadow
+an occupied key (same priority would throw). This is not optional decoration: DSH's
 built-in web row builds a citation card only when the *call arguments* carry its
 own `{ queries }` array, and this plugin deliberately keeps the MCP operation's
 `query` argument instead, so the shipped row always declines and the
