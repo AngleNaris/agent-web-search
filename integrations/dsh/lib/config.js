@@ -28,6 +28,7 @@ import {
   MIN_ATTEMPT_TIMEOUT_MS,
   MIN_MAX_RESULTS,
   MIN_TOTAL_TIMEOUT_MS,
+  GROK_MODES,
   MODES,
   PROVIDER_KINDS,
   TIME_RANGES,
@@ -51,6 +52,9 @@ export const Config = z.object({
     // grok, ark, zhipu_chat_search, messages, responses, codex_alpha); blank
     // means the backend default. Ignored for fixed-backend kinds.
     models: z.string().default(''),
+    // Native tool type override for the generic Messages/Responses backends
+    // (AGENT_WEB_SEARCH_*_TOOL_TYPE); blank means the backend default.
+    toolType: z.string().default(''),
     id: z.string().default(''),
     toolName: z.string().default(''),
     inputTemplate: z.string().default('{"query":"{{query}}"}'),
@@ -70,6 +74,10 @@ export const Config = z.object({
   // The model-facing tool takes no time_range argument, so this card value
   // is the only source.
   timeRange: z.union(TIME_RANGES).default('').volatile(),
+  // Default Grok search mode applied to every search: '' omits the argument
+  // and Python defaults to web_search. Only sent on grok attempts: Python
+  // rejects grok_search_mode when grok is not enabled.
+  grokMode: z.union(GROK_MODES).default('').volatile(),
 })
 
 /**
@@ -81,11 +89,17 @@ export const Config = z.object({
 export function normalizeEntry(entry) {
   const baseURL = typeof entry.baseURL === 'string' ? entry.baseURL.trim() : ''
   const models = typeof entry.models === 'string' ? entry.models.trim() : ''
+  const toolType = typeof entry.toolType === 'string' ? entry.toolType.trim() : ''
+  const toolName = typeof entry.toolName === 'string' ? entry.toolName.trim() : ''
   return {
     kind: entry.kind,
     enabled: entry.enabled !== false,
     ...(baseURL.length > 0 ? { baseURL } : {}),
     ...(models.length > 0 ? { models } : {}),
+    ...(toolType.length > 0 ? { toolType } : {}),
+    // toolName doubles as the Messages backend tool-name override; legacy
+    // stored MCP sources that still carry it are dropped with their kind.
+    ...(toolName.length > 0 ? { toolName } : {}),
   }
 }
 
@@ -119,6 +133,7 @@ export function resolveConfig(input = {}) {
     dedupeByUrl: resolved.dedupeByUrl.get(),
     includeAnswer: resolved.includeAnswer.get(),
     timeRange: resolved.timeRange.get(),
+    grokMode: resolved.grokMode.get(),
   }
 }
 
@@ -141,6 +156,7 @@ export function snapshotsOf(config) {
     dedupeByUrl: config.dedupeByUrl.get(),
     includeAnswer: config.includeAnswer.get(),
     timeRange: config.timeRange.get(),
+    grokMode: config.grokMode.get(),
   }
 }
 

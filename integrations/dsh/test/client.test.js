@@ -119,3 +119,26 @@ test('time range edits validate and save as a plain value', async () => {
   injected.edit('timeRange', 'nope')
   assert.equal(injected.hooks.agentWebSearch.getSnapshot().invalid, 'timeRange')
 })
+
+test('tool type/name are staged per upstream and saved only when non-blank', async () => {
+  const { injected, writes } = mounted()
+  injected.setToolType('messages', 'web_search_20250101')
+  injected.setToolName('messages', 'custom_search')
+  injected.setEnabled('messages', true)
+  injected.setToolType('responses', '   ')
+  injected.setEnabled('responses', true)
+  await injected.save()
+  const saved = writes.find(([field]) => field === 'providers')[1]
+  assert.equal(saved.find(item => item.kind === 'messages').toolType, 'web_search_20250101')
+  assert.equal(saved.find(item => item.kind === 'messages').toolName, 'custom_search')
+  assert.equal('toolType' in saved.find(item => item.kind === 'responses'), false)
+})
+
+test('grok mode edits validate and save as a plain value', async () => {
+  const { injected, writes } = mounted()
+  injected.edit('grokMode', 'both')
+  await injected.save()
+  assert.equal(writes.find(([field]) => field === 'grokMode')[1], 'both')
+  injected.edit('grokMode', 'nope')
+  assert.equal(injected.hooks.agentWebSearch.getSnapshot().invalid, 'grokMode')
+})

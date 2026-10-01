@@ -50,6 +50,17 @@ const EXTRA_ENDPOINT_ENV = [
   'AGENT_WEB_SEARCH_PARALLEL_MCP_URL',
 ]
 
+// Native tool-type overrides for the generic Messages/Responses backends.
+const TOOL_TYPE_ENV = {
+  messages: 'AGENT_WEB_SEARCH_MESSAGES_TOOL_TYPE',
+  responses: 'AGENT_WEB_SEARCH_RESPONSES_TOOL_TYPE',
+}
+
+// Native tool-name override for the generic Messages backend.
+const TOOL_NAME_ENV = {
+  messages: 'AGENT_WEB_SEARCH_MESSAGES_TOOL_NAME',
+}
+
 // The environment variable each model-backed kind reads its model list from.
 // Kinds absent here take no model setting. Values are comma-separated model
 // names, except `codex_alpha` which takes a single model.
@@ -311,7 +322,7 @@ export class PythonSearchBridge {
     this.lineMode = options.lineMode !== false
   }
 
-  async search({ query, maxResults, providers, entries, resolveValue, timeoutMs, signal, timeRange }) {
+  async search({ query, maxResults, providers, entries, resolveValue, timeoutMs, signal, timeRange, grokMode }) {
     if (!Array.isArray(providers) || providers.length === 0) {
       throw providerError('No Python search providers are configured', 'configuration')
     }
@@ -345,6 +356,9 @@ export class PythonSearchBridge {
         arguments: {
           query, max_results: maxResults, providers,
           ...(timeRange ? { time_range: timeRange } : {}),
+          // Python rejects grok_search_mode unless grok is enabled, and each
+          // attempt requests exactly one provider, so gate on the kind.
+          ...(grokMode && providers.includes('grok') ? { grok_search_mode: grokMode } : {}),
         },
       })
       return mapProviderPayload(parseToolEnvelope(envelope), maxResults)
@@ -370,6 +384,8 @@ async function buildEnvironment({ baseEnv, entries, providers, resolveValue, sig
   for (const [name, variable] of Object.entries(CREDENTIAL_ENV)) delete env[variable]
   for (const variable of Object.values(ENDPOINT_ENV)) delete env[variable]
   for (const variable of Object.values(MODEL_ENV)) delete env[variable]
+  for (const variable of Object.values(TOOL_TYPE_ENV)) delete env[variable]
+  for (const variable of Object.values(TOOL_NAME_ENV)) delete env[variable]
   for (const variable of Object.values(BASE_URL_ENV)) delete env[variable]
   for (const variable of EXTRA_ENDPOINT_ENV) delete env[variable]
   for (const entry of entries ?? []) {
@@ -377,6 +393,14 @@ async function buildEnvironment({ baseEnv, entries, providers, resolveValue, sig
     const modelEnv = MODEL_ENV[entry.kind]
     if (modelEnv && typeof entry.models === 'string' && entry.models.trim()) {
       env[modelEnv] = entry.models.trim()
+    }
+    const toolTypeEnv = TOOL_TYPE_ENV[entry.kind]
+    if (toolTypeEnv && typeof entry.toolType === 'string' && entry.toolType.trim()) {
+      env[toolTypeEnv] = entry.toolType.trim()
+    }
+    const toolNameEnv = TOOL_NAME_ENV[entry.kind]
+    if (toolNameEnv && typeof entry.toolName === 'string' && entry.toolName.trim()) {
+      env[toolNameEnv] = entry.toolName.trim()
     }
     const credentialEnv = CREDENTIAL_ENV[entry.kind]
     if (credentialEnv && entry.credentialRef && typeof resolveValue === 'function') {

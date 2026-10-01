@@ -14,7 +14,7 @@ function config(providers, mode = 'fanout') {
   return {
     mode: wrap(mode), providers: wrap(providers), maxResults: wrap(8),
     attemptTimeoutMs: wrap(2000), totalTimeoutMs: wrap(5000),
-    dedupeByUrl: wrap(true), includeAnswer: wrap(false), timeRange: wrap(''),
+    dedupeByUrl: wrap(true), includeAnswer: wrap(false), timeRange: wrap(''), grokMode: wrap(''),
   }
 }
 

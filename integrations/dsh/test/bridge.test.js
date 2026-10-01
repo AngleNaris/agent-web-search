@@ -192,3 +192,42 @@ test('bridge passes time_range to the MCP call only when configured', async () =
     assert.equal(params.arguments.time_range ?? undefined, expected)
   }
 })
+
+test('bridge forwards tool type/name overrides and clears inherited ones', async () => {
+  const state = {}
+  const calls = []
+  let childEnvironment
+  const bridge = new PythonSearchBridge({
+    command: 'fake-agent-web-search-mcp',
+    spawn: (command, args, options) => {
+      childEnvironment = options.env
+      return spawnFor(replyToCalls({ providers: { messages: { results: [{ title: 'A', url: 'https://example.org/a' }] } } }, calls), state)(command, args, options)
+    },
+    env: { PATH: '/bin', AGENT_WEB_SEARCH_MESSAGES_TOOL_TYPE: 'stale-type', AGENT_WEB_SEARCH_RESPONSES_TOOL_TYPE: 'stale-type' }, lineMode: true,
+  })
+  await bridge.search({
+    query: 'q', maxResults: 1, providers: ['messages'],
+    entries: [{ kind: 'messages', credentialRef: 'AGENT_WEB_SEARCH_MESSAGES_API_KEY', toolType: 'web_search_20250101', toolName: 'custom_search' }],
+    resolveValue: async () => undefined, timeoutMs: 1000,
+  })
+  assert.equal(childEnvironment.AGENT_WEB_SEARCH_MESSAGES_TOOL_TYPE, 'web_search_20250101')
+  assert.equal(childEnvironment.AGENT_WEB_SEARCH_MESSAGES_TOOL_NAME, 'custom_search')
+  assert.equal(childEnvironment.AGENT_WEB_SEARCH_RESPONSES_TOOL_TYPE, undefined)
+})
+
+test('bridge sends grok_search_mode only on grok attempts', async () => {
+  for (const [kind, grokMode, expected] of [['grok', 'x_search', 'x_search'], ['grok', '', undefined], ['ddgs', 'both', undefined]]) {
+    const state = {}
+    const calls = []
+    const bridge = new PythonSearchBridge({
+      spawn: spawnFor(replyToCalls({ providers: { [kind]: { results: [{ title: 'A', url: 'https://example.org/a' }] } } }, calls), state),
+      env: {}, lineMode: true,
+    })
+    await bridge.search({
+      query: 'q', maxResults: 1, providers: [kind], entries: [{ kind }],
+      resolveValue: async () => undefined, timeoutMs: 1000, grokMode,
+    })
+    const params = calls.find(call => call.method === 'tools/call').params
+    assert.equal(params.arguments.grok_search_mode ?? undefined, expected)
+  }
+})

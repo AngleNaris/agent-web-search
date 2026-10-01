@@ -60,6 +60,10 @@ controls retain the following runtime behavior:
 - per-upstream model text for model-backed upstreams (DeepSeek, Gemini, Grok,
   ARK, Zhipu chat search, generic Messages/Responses, Codex Alpha):
   comma-separated model names, blank means the backend default;
+- native tool type/name overrides for the generic Messages backend and tool
+  type override for the Responses backend; blank means the backend default;
+- default Grok search mode (`web_search`/`x_search`/`both`) applied to every
+  search when grok is enabled;
 - DSH credential references, which are resolved server-side and never persisted
   in the provider queue or sent to the model; and
 - bounded in-memory call history and authenticated diagnostics.

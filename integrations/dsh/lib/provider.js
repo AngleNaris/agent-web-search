@@ -60,6 +60,7 @@ export class AgentWebSearchProvider {
         providers: entries,
         query: request?.query,
         timeRange: config.timeRange,
+        grokMode: config.grokMode,
         maxResults,
         attemptTimeoutMs: config.attemptTimeoutMs,
         totalTimeoutMs: config.totalTimeoutMs,
