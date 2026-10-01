@@ -15,12 +15,15 @@
 #    Plugins page while never being selected. Deleting these two lines restores
 #    it; so does setting `disabled: false` from your own profile layer.
 #
-# 3. TURN OFF the shipped `{ queries }` web_search tool, keeping `web_fetch`.
-#    This plugin registers its own `web_search` with the MCP-consistent schema
-#    (query/max_results/time_range/providers/grok_search_mode), so the shipped
-#    one must not compete for the same name. This restates tool-web's other
-#    defaults verbatim because a patch replaces the whole row config; re-enable
-#    `search` here only if you also remove this plugin's tool registration.
+# 3. TURN OFF the shipped `{ queries }` web_search tool at host scope, keeping
+#    `web_fetch`. This plugin registers its own `web_search` with the
+#    MCP-consistent schema (query/max_results/time_range/providers/
+#    grok_search_mode). Agent presets mount their own `tool-web` row that no
+#    patch layer can reach, so `lib/agent-tool.js` additionally registers this
+#    tool inside every agent scope (force: true) to shadow it. This restates
+#    tool-web's other defaults verbatim because a patch replaces the whole row
+#    config; re-enable `search` here only if you also remove this plugin's tool
+#    registration.
 #
 # 4. INSERT this package's plugin row. Everything the row's config says can be
 #    edited afterwards from Settings → agent-web-search, because the schema marks
@@ -28,8 +31,8 @@
 #
 # Only the three keyless upstreams ship ENABLED. A keyed upstream with no key
 # fails its attempt on every search, so shipping them on would make "enabled"
-# mean "will probably fail" and the Plugins page would show ten rows as on while
-# none could serve. Flip them on in the card once their credential is set.
+# mean "will probably fail" and the Plugins page would show sixteen rows as on
+# while none could serve. Flip them on in the card once their credential is set.
 - id: web
   config:
     searchProvider: agent-web-search

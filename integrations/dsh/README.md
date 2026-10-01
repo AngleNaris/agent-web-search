@@ -14,7 +14,10 @@ operation — `query`, `max_results`, `time_range`, `providers`, and
 `grok_search_mode`. All of them are per-call inputs, exactly as in the Python
 operation: `max_results` is **not** a DSH setting. When the model omits it, the
 bridge omits it too and the core default (10) applies; `time_range` and
-`grok_search_mode` are per-call only.
+`grok_search_mode` are per-call only. Agent presets mount their own `tool-web`
+row, which no patch layer can reach, so the tool is additionally registered
+inside every agent scope (`lib/agent-tool.js`) with `force: true` to shadow the
+shipped one there.
 
 ## Architecture
 
@@ -49,7 +52,7 @@ Full steps, including the desktop app, the Python runtime, and a copy-paste
 install prompt, live in [docs/INSTALL.md](./docs/INSTALL.md). The short form:
 
 ```bash
-dsh plugin --profile <profile> add github:JerryLiu369/agent-web-search#feat/dsh-native-plugin
+dsh plugin --profile <profile> add github:JerryLiu369/agent-web-search
 python -m pip install agent-web-search-mcp
 ```
 

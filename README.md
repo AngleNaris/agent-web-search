@@ -733,7 +733,7 @@ the desktop app ships its own `dsh plugin` command, so no manual file
 placement is needed):
 
 ```bash
-dsh plugin --profile <profile> add github:JerryLiu369/agent-web-search#feat/dsh-native-plugin
+dsh plugin --profile <profile> add github:JerryLiu369/agent-web-search
 python -m pip install agent-web-search-mcp
 ```
 
@@ -745,7 +745,7 @@ restart DSH if the new provider is not picked up immediately; the bridge
 delegates built-in provider work to that command while DSH retains its native
 settings, history, and diagnostics. Full steps and a copy-paste install prompt
 are in
-[`integrations/dsh/docs/INSTALL.md`](https://github.com/JerryLiu369/agent-web-search/blob/feat/dsh-native-plugin/integrations/dsh/docs/INSTALL.md).
+[`integrations/dsh/docs/INSTALL.md`](https://github.com/JerryLiu369/agent-web-search/blob/main/integrations/dsh/docs/INSTALL.md).
 
 DSH can also connect through its built-in MCP client instead of the native
 plugin.

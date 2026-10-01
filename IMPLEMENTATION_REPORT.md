@@ -1,22 +1,31 @@
 # Implementation Report
 
+> **Historical record.** This report describes the change that replaced the
+> JavaScript provider fleet with the Python MCP bridge, at a point when the DSH
+> suite had 32 tests. Later work — the core `{ query, providers }` payload,
+> per-call `max_results` instead of a card setting, no result truncation, and the
+> removal of the custom MCP-source path — is reflected in `ARCHITECTURE.md` and
+> `integrations/dsh/README.md`, which are the authoritative descriptions. Read
+> the statements below as history, not as current behavior.
+
 ## Architecture decision
 
-DSH remains the product boundary. The plugin still registers one native
-`ctx.web` provider and the Cordis patch still selects it for DSH's native
-`web_search` path, so the model-facing tool name, prompt, normalized source
-rows, citation cards, settings, history, diagnostics, and custom MCP-source
-behavior remain DSH behavior.
+DSH remains the product boundary. The plugin registers one native
+`ctx.web` provider and the Cordis patch selects it for DSH's native
+`web_search` path, so the model-facing tool name, prompt, citation cards,
+settings, history, and diagnostics remain DSH behavior.
 
 The duplicate JavaScript provider fleet and aggregation engine are removed.
 Built-in provider attempts now use a short-lived `agent-web-search-mcp` stdio
 child and call only the fixed `web_search` operation. The bridge maps DSH live
 credential references into the child environment, propagates provider
-selection and `maxResults`, bounds output, sanitizes structured failures, and
-terminates the child on success, timeout, cancellation, or malformed output.
-DSH keeps fanout/fallback orchestration because those controls and per-source
-history are not represented in the Python public MCP response. Custom remote
-MCP sources remain the existing DSH-side exact-tool path.
+selection and a caller-supplied `max_results`, bounds output, sanitizes
+structured failures, and terminates the child on success, timeout,
+cancellation, or malformed output. DSH keeps fanout/fallback orchestration
+because those controls and per-source history are not represented in the Python
+public MCP response. Custom remote MCP sources were the existing DSH-side
+exact-tool path at the time of this change; they were removed later (see the
+follow-up section below).
 
 ## Files changed
 

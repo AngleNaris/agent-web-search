@@ -22,8 +22,8 @@
 ```text
 请把 agent-web-search 的 DSH 原生插件装到当前 profile 并验证可用：
 
-1. 用桌面版/CLI 自带的 dsh 命令安装指定分支的原生 bundle：
-   dsh plugin --profile <profile> add github:JerryLiu369/agent-web-search#feat/dsh-native-plugin
+1. 用桌面版/CLI 自带的 dsh 命令安装原生 bundle：
+   dsh plugin --profile <profile> add github:JerryLiu369/agent-web-search
    注意：这是 DSH 原生 bundle 安装，不是添加 MCP Server；
    模型侧工具名必须保持原生 web_search，不能出现 mcp__...__web_search。
 
@@ -42,7 +42,7 @@
    只需要返回是否成功、命中了哪个上游、结果条数；
    不要把整页搜索内容贴出来。
 
-5. 最后汇报：实际加载的插件名、版本、分支提交、当前 profile，
+5. 最后汇报：实际加载的插件名、版本、安装来源与提交、当前 profile，
    以及 Python 包版本和所在 Python 环境。
 ```
 
@@ -51,8 +51,8 @@
 ## 手动步骤
 
 ```bash
-# 1. 安装 DSH 原生 bundle（指定分支）
-dsh plugin --profile desktop add github:JerryLiu369/agent-web-search#feat/dsh-native-plugin
+# 1. 安装 DSH 原生 bundle
+dsh plugin --profile desktop add github:JerryLiu369/agent-web-search
 
 # 2. 安装 Python 搜索运行时（和 DSH 宿主同一个 Python 环境）
 python -m pip install agent-web-search-mcp

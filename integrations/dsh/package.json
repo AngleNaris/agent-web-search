@@ -1,7 +1,7 @@
 {
   "name": "dsh-agent-web-search",
   "version": "0.5.0",
-  "description": "Native DSH aggregated web search with source-attributed results and compact private diagnostics.",
+  "description": "DeepSeek Harness (DSH) native plugin: replaces DSH's built-in web_search with this project's provider set.",
   "type": "module",
   "main": "lib/index.js",
   "exports": {
@@ -15,6 +15,7 @@
   },
   "files": [
     "lib",
+    "docs",
     "cordis.patch.yml",
     "README.md"
   ],

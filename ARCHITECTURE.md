@@ -92,7 +92,7 @@ YAML, TOML, or JSON application configuration file.
   `AGENT_WEB_SEARCH_*` and provider-specific environment variables.
 - HTTP host, port, authentication, and transport security also use environment
   variables.
-- `query`, `providers`, `max_results`, and `time_range` are
+- `query`, `providers`, `max_results`, `time_range`, and `grok_search_mode` are
   request inputs, not persistent configuration.
 - A command-line transport selector is allowed because it chooses the process
   operating mode; the equivalent environment variable must also exist for
