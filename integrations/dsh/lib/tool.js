@@ -167,10 +167,13 @@ const OUTPUT_SCHEMA = {
  * @param {object} options - shared provider options.
  * @param {() => object} options.config - the loader-resolved plugin config.
  * @param {AgentWebSearchProvider} options.provider - the registered seam provider (shares history and bridge).
+ * @param {boolean} [options.force] - skip the already-registered check. Used
+ *   for agent-scope installs, where the preset-native row is expected to be
+ *   visible and shadowing it is the point.
  * @returns the tool registration disposer.
  */
-export function registerWebSearchTool(ctx, { config, provider }) {
-  if (ctx.tools.get('web_search') !== undefined) {
+export function registerWebSearchTool(ctx, { config, provider, force = false }) {
+  if (!force && ctx.tools.get('web_search') !== undefined) {
     ctx.logger?.warn?.('agent-web-search: a web_search tool is already registered; keeping the existing one')
     return () => {}
   }

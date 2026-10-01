@@ -104,6 +104,7 @@ test('authenticated connection route reports current selected provider and calls
     web: { registerSearchProvider: value => { provider = value } },
     tools: { get: () => ({}), register: () => () => {} },
     systemPrompt: { section: () => {}, getSectionOrder: () => 0 },
+    get: () => undefined,
     loader: { entries: () => [{ options: { id: 'web' }, fiber: { config: current } }] },
     inject: (_names, callback) => callback({
       effect: register => register(),
