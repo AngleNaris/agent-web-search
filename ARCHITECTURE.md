@@ -74,8 +74,10 @@ payload and the process exits with status 1. Argument errors use status 2.
   serverless platforms.
 - The Hermes plugin and Python API call the same `SearchEngine` directly.
 - The DSH provider is another thin adapter: it maps live DSH credentials and
-  provider selection into the Python MCP request and maps normalized results
-  back to the DSH web-provider contract.
+  provider selection into the Python MCP request and preserves the normalized
+  `{ query, providers }` success payload for the native model-facing tool.
+  DSH-only citation-card sources and execution metadata remain a separate
+  presentation projection and never replace the MCP-shaped model payload.
 
 MCP stdio and MCP HTTP expose the same `web_search` tool, input schema, output
 shape, provider selection, partial-failure behavior, and

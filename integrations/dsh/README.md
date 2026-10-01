@@ -11,7 +11,10 @@ The bundle also replaces the model-facing tool itself: the shipped
 `tool-web` row is switched to `search: false` (keeping `web_fetch`) and this
 plugin registers its own `web_search` with the same parameters as the Python
 operation — `query`, `max_results`, `time_range`, `providers`, and
-`grok_search_mode`. An omitted `max_results` falls back to the card value; `time_range` and `grok_search_mode` are per-call only.
+`grok_search_mode`. All of them are per-call inputs, exactly as in the Python
+operation: `max_results` is **not** a DSH setting. When the model omits it, the
+bridge omits it too and the core default (10) applies; `time_range` and
+`grok_search_mode` are per-call only.
 
 ## Architecture
 
@@ -20,8 +23,12 @@ operation — `query`, `max_results`, `time_range`, `providers`, and
   built-in DeepSeek search row without changing the tool surface.
 - Built-in providers are delegated to the installed Python
   `agent-web-search-mcp` command over local stdio. The bridge calls only the
-  fixed `web_search` MCP operation, bounds output, propagates `maxResults`,
-  honors cancellation and timeouts, and terminates the child process.
+  fixed `web_search` MCP operation, bounds output, forwards `max_results` when
+  the caller set one, honors cancellation and timeouts, and terminates the child
+  process.
+- The bridge never truncates what an upstream returned: `max_results` bounds
+  what each upstream is *asked* for, and the core already applies it. DSH keeps
+  every returned row (unsafe URLs rejected, duplicates optionally collapsed).
 - DSH retains its fanout/fallback strategy controls, live credentials,
   in-memory history, diagnostics, and settings page.
 
@@ -93,10 +100,21 @@ its endpoint with an arbitrary HTML URL.
 
 ## Native result and error behavior
 
-Successful Python results are mapped to DSH `sources` and optional `content`.
-Provider answers retain a short source attribution, while source rows remain
-normalized DSH citation rows. Malformed MCP output, oversized output, timeout,
-cancellation, and all-provider failure become sanitized DSH provider errors;
+The native model-facing `web_search` result preserves the Python/MCP success
+contract exactly: `{ query, providers }`. Each provider entry keeps its optional
+`answer` and `results` rows, including `published_at` and `author` when present.
+No row is discarded to shorten the payload: `max_results` bounds what each
+upstream is asked for and the core already applies it. Rows whose URL is not a
+safe navigable web URL (non-HTTP, credentialed, or fragment-bearing) are dropped
+one by one rather than failing the provider, so untrusted upstream data cannot
+turn a single bad row into a denial of service. An all-provider failure is
+returned as the structured `{ error, query }` envelope with
+`error.code = "all_providers_failed"` and sanitized `provider_errors`.
+
+DSH citation cards are a separate presentation projection: they may add source
+labels, deduplicate URLs, and expose an optional answer without mutating the
+model-facing payload. Malformed MCP output, oversized output, timeout,
+cancellation, and other provider failures remain sanitized DSH execution errors;
 upstream response bodies and credentials are never copied into model-visible
 errors or history.
 
@@ -119,7 +137,8 @@ before running `pytest -q`.
 
 The DSH bridge tests use fake child processes and never make paid provider
 requests. They cover result mapping, malformed and structured error results,
-`maxResults`, cancellation, timeout, bounded output, and child cleanup.
+per-call `max_results` forwarding (and its omission), URL safety and dedupe,
+cancellation, timeout, bounded output, and child cleanup.
 
 The package layout is intentionally a thin DSH adapter. Provider dispatch,
 normalization, credentials, and shared failure payloads belong to the Python

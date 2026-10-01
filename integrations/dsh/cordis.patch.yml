@@ -53,7 +53,6 @@
       name: dsh-agent-web-search
       config:
         mode: fanout
-        maxResults: 8
         attemptTimeoutMs: 12000
         totalTimeoutMs: 30000
         dedupeByUrl: true

@@ -51,9 +51,12 @@ export class AgentWebSearchProvider {
       finish('failed')
       throw new WebError('agent-web-search has no enabled sources', 'WEB_PROVIDER_UNAVAILABLE')
     }
+    // `max_results` is a per-call request input, never persistent configuration
+    // (ARCHITECTURE.md: request inputs are not configuration). Omitted means
+    // the core default (10) applies downstream; DSH must not substitute its own.
     const maxResults = Number.isFinite(request?.maxResults) && request.maxResults > 0
       ? Math.min(20, Math.floor(request.maxResults))
-      : config.maxResults
+      : undefined
     const resolveValue = async (ref, childSignal) => {
       if (!ref || typeof this.options.resolveValue !== 'function') return undefined
       const promise = this.options.resolveValue(ref)
@@ -84,6 +87,10 @@ export class AgentWebSearchProvider {
       })
       finish('success', outcome.sources.length)
       return {
+        query: outcome.query,
+        providers: outcome.providers,
+        // These fields are an internal DSH citation projection. The native
+        // model tool returns only query/providers so it stays MCP-compatible.
         sources: outcome.sources,
         truncated: outcome.truncated,
         ...(outcome.content !== undefined ? { content: outcome.content } : {}),
@@ -98,7 +105,12 @@ export class AgentWebSearchProvider {
         throw new WebError('agent-web-search: search timed out', 'WEB_PROVIDER_ERROR')
       }
       finish('failed')
-      throw new WebError('agent-web-search: all configured sources failed', 'WEB_PROVIDER_ERROR')
+      const wrapped = new WebError('agent-web-search: all configured sources failed', 'WEB_PROVIDER_ERROR')
+      if (error?.code === 'all_providers_failed') {
+        wrapped.searchCode = 'all_providers_failed'
+        wrapped.providerErrors = error.providerErrors
+      }
+      throw wrapped
     }
   }
 }

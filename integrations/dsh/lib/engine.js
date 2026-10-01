@@ -1,4 +1,5 @@
-import { mergeBridgeOutcomes } from './bridge.js'
+import { isSafeSourceUrl, mergeBridgeOutcomes } from './bridge.js'
+import { KIND_LABEL } from './defaults.js'
 
 function timeoutSignal(parent, milliseconds) {
   const timeout = AbortSignal.timeout(milliseconds)
@@ -30,7 +31,7 @@ async function runOne({ entry, query, maxResults, attemptTimeoutMs, signal, reso
         throw error
       }
       const result = await adapter.search({ entry, query, maxResults, signal: attemptSignal })
-      return { result: { sources: result.sources ?? result.results ?? [], ...(result.content ? { content: result.content } : result.answer ? { content: result.answer } : {}) }, elapsedMs: Date.now() - startedAt }
+      return { result: { query, ...result }, elapsedMs: Date.now() - startedAt }
     }
     const result = await bridge.search({
       query, maxResults, providers: [entry.kind], entries: [entry], resolveValue,
@@ -51,6 +52,75 @@ function entryLabel(entry) {
 
 function attemptKind(entry) {
   return entry.kind
+}
+
+function isObject(value) {
+  return value !== null && typeof value === 'object' && !Array.isArray(value)
+}
+
+function coreProviderFromLegacy(result) {
+  const rows = Array.isArray(result?.sources) ? result.sources : (Array.isArray(result?.results) ? result.results : [])
+  return {
+    ...(typeof result?.content === 'string' && result.content.length > 0 ? { answer: result.content } :
+      typeof result?.answer === 'string' && result.answer.length > 0 ? { answer: result.answer } : {}),
+    results: rows.map(source => ({
+      title: typeof source?.title === 'string' ? source.title : '',
+      url: typeof source?.url === 'string' ? source.url : '',
+      description: typeof source?.description === 'string'
+        ? source.description
+        : typeof source?.snippet === 'string' ? source.snippet : '',
+      ...(typeof source?.published_at === 'string'
+        ? { published_at: source.published_at }
+        : typeof source?.publishedAt === 'string' ? { published_at: source.publishedAt } : {}),
+      ...(typeof source?.author === 'string' ? { author: source.author } : {}),
+    })),
+  }
+}
+
+function sourceFromCore(entry, row) {
+  const label = KIND_LABEL[entry.kind] ?? entry.kind
+  return {
+    title: `【来源：${label}】${row.title.length > 0 ? ` ${row.title}` : ''}`,
+    url: row.url,
+    ...(row.description.length > 0 ? { snippet: row.description } : {}),
+    ...(row.published_at !== undefined ? { publishedAt: row.published_at } : {}),
+    ...(row.author !== undefined ? { author: row.author } : {}),
+  }
+}
+
+function failureDetails(item) {
+  if (!item.providerErrors || typeof item.providerErrors !== 'object' || Array.isArray(item.providerErrors)) {
+    return item.reason
+  }
+  return Object.prototype.hasOwnProperty.call(item.providerErrors, item.kind)
+    ? item.providerErrors[item.kind]
+    : item.providerErrors
+}
+
+function normalizeOutcome(entry, result, includeAnswer) {
+  const rawProvider = isObject(result?.providers) && isObject(result.providers[entry.kind])
+    ? result.providers[entry.kind]
+    : coreProviderFromLegacy(result)
+  const rows = Array.isArray(rawProvider.results) ? rawProvider.results : []
+  const results = rows.filter(row => isSafeSourceUrl(row?.url)).map(row => ({
+    title: row.title,
+    url: row.url,
+    description: row.description,
+    ...(row.published_at !== undefined ? { published_at: row.published_at } : {}),
+    ...(row.author !== undefined ? { author: row.author } : {}),
+  }))
+  const provider = {
+    // `answer` is part of the core model-facing payload. The DSH setting only
+    // controls whether the separate citation-card projection includes it.
+    ...(typeof rawProvider.answer === 'string' ? { answer: rawProvider.answer } : {}),
+    results,
+  }
+  return {
+    query: typeof result?.query === 'string' ? result.query : undefined,
+    providers: { [entry.kind]: provider },
+    sources: results.map(row => sourceFromCore(entry, row)),
+    ...(includeAnswer && provider.answer !== undefined ? { content: provider.answer } : {}),
+  }
 }
 
 export async function runSearch({
@@ -75,12 +145,8 @@ export async function runSearch({
   }
 
   const observeSuccess = (entry, outcome, elapsedMs) => {
-    const result = {
-      ...outcome,
-      sources: Array.isArray(outcome?.sources) ? outcome.sources : [],
-      ...(includeAnswer ? {} : { content: undefined }),
-    }
-    outcomes.push(result)
+    const result = normalizeOutcome(entry, outcome, includeAnswer)
+    outcomes.push({ kind: entry.kind, ...result })
     const status = result.sources.length > 0 || (includeAnswer && result.content) ? 'success' : 'empty'
     onAttempt?.({
       kind: attemptKind(entry),
@@ -90,7 +156,9 @@ export async function runSearch({
       resultCount: result.sources.length,
     })
     logger?.info?.('agent-web-search: %s served the query in %d ms (%d rows)', entryLabel(entry), elapsedMs, result.sources.length)
-    return status === 'success'
+    // An empty but valid provider response is still a successful provider in
+    // the core contract and must remain under `providers`.
+    return true
   }
 
   const runEntry = async entry => {
@@ -119,14 +187,29 @@ export async function runSearch({
 
   if (signal?.aborted) throw signal.reason ?? new DOMException('search aborted', 'AbortError')
   if (totalSignal.aborted) throw timeoutSignalError()
-  const merged = mergeBridgeOutcomes(outcomes, maxResults, dedupeByUrl)
-  if (merged.sources.length === 0 && (!includeAnswer || !merged.content)) {
+  if (outcomes.length === 0) {
     const error = new Error('All configured search providers failed')
     error.code = 'all_providers_failed'
-    error.providerErrors = Object.fromEntries(failures.map(item => [item.kind, item.reason]))
+    error.providerErrors = Object.fromEntries(failures.map(item => [
+      item.kind,
+      failureDetails(item),
+    ]))
     throw error
   }
-  return { ...merged, failures }
+  const merged = mergeBridgeOutcomes(outcomes, dedupeByUrl)
+  const byKind = new Map(outcomes.map(item => [item.kind, item]))
+  const publicProviders = {}
+  for (const entry of providers) {
+    const outcome = byKind.get(entry.kind)
+    if (outcome) publicProviders[entry.kind] = outcome.providers[entry.kind]
+  }
+  const first = outcomes[0]
+  return {
+    query: first.query ?? query,
+    providers: publicProviders,
+    ...merged,
+    failures,
+  }
 }
 
 function timeoutSignalError() {
@@ -134,11 +217,4 @@ function timeoutSignalError() {
   error.name = 'TimeoutError'
   error.code = 'timeout'
   return error
-}
-
-export function mergeResults(outcomes, dedupeByUrl, maxResults) {
-  return mergeBridgeOutcomes(outcomes.map(item => ({
-    sources: item.sources ?? item.results ?? [],
-    ...(item.content !== undefined ? { content: item.content } : item.answer ? { content: item.answer } : {}),
-  })), maxResults, dedupeByUrl)
 }

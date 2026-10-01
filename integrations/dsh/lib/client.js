@@ -21,7 +21,7 @@ window.__ModuleLoader__.load({
 		const KIND_DEFAULT_MODELS = { deepseek: "deepseek-v4-flash", gemini: "gemini-3.7-flash", grok: "grok-4.6", ark: "glm-5-2-260617, doubao-seed-2-1-turbo-260628, deepseek-v4-flash-ga-260731", zhipu_chat_search: "glm-5.3-flash", messages: "claude-3-7-sonnet-20250219, claude-3-5-haiku-20241022", responses: "gpt-5-mini", codex_alpha: "gpt-5.6-luna" };
 		const ANONYMOUS_KINDS = ["exa", "parallel", "ddgs"];
 		const MODES = ["fanout", "fallback"];
-		const NUMERIC_FIELDS = ["maxResults", "attemptTimeoutMs", "totalTimeoutMs"];
+		const NUMERIC_FIELDS = ["attemptTimeoutMs", "totalTimeoutMs"];
 		const BOOLEAN_FIELDS = ["dedupeByUrl", "includeAnswer"];
 		const entryKey = (entry) => entry.kind;
 		//#endregion
@@ -42,7 +42,6 @@ window.__ModuleLoader__.load({
 			modeFanout: "Fan out (all upstreams, merged)",
 			modeFallback: "Fallback (first success wins)",
 			modeHint: "Fanout queries every enabled upstream concurrently and merges the results. Fallback walks them in order and stops at the first success.",
-			maxResults: "Results returned",
 			attemptTimeout: "Per-upstream timeout (ms)",
 			totalTimeout: "Whole-search budget (ms)",
 			dedupeByUrl: "De-duplicate by URL",
@@ -102,12 +101,11 @@ window.__ModuleLoader__.load({
 			policyIntro: "Adjust how enabled sources run and how their answers are merged.",
 			policyModeTitle: "Dispatch mode",
 			policyModeDesc: "Whether to query all upstreams concurrently or fall back in sequence.",
-			maxResultsDesc: "Maximum count of merged and deduplicated results returned to search callers.",
 			attemptTimeoutDesc: "Timeout limit for each individual upstream attempt.",
 			totalTimeoutDesc: "Overall time budget across all upstreams before stopping.",
 			dedupeByUrlDesc: "Automatically combine results that point to the exact same web URL.",
 			includeAnswerDesc: "Include synthesized text summaries from upstreams that generate answers.",
-			limitsGroup: "Limits & Timeout Budget",
+			limitsGroup: "Timeout Budget",
 			filterGroup: "Result Processing & Content",
 			notSaved: "Changes take effect after saving.",
 		};
@@ -126,7 +124,6 @@ window.__ModuleLoader__.load({
 			modeFanout: "并发扇出（全部上游，合并结果）",
 			modeFallback: "顺序回退（第一个成功即止）",
 			modeHint: "扇出模式会并发查询所有启用的上游并合并结果；回退模式按顺序逐个尝试，第一个成功就停止。",
-			maxResults: "返回结果数",
 			attemptTimeout: "单上游超时（毫秒）",
 			totalTimeout: "整体预算（毫秒）",
 			dedupeByUrl: "按 URL 去重",
@@ -186,12 +183,11 @@ window.__ModuleLoader__.load({
 			policyIntro: "调整已启用来源的调用方式及答案合并方式。",
 			policyModeTitle: "多上游调度模式",
 			policyModeDesc: "选择并发查询全部上游以获取丰富结果，或顺序容灾以节省额度。",
-			maxResultsDesc: "合并去重后最终呈现给用户的网页结果数量上限。",
 			attemptTimeoutDesc: "单个搜索服务单次调用的最长等待时间（毫秒）。",
 			totalTimeoutDesc: "聚合搜索全链路的最长预算耗时，超时将自动收敛（毫秒）。",
 			dedupeByUrlDesc: "跨多个搜索来源发现相同网页 URL 时自动合并为一条引文。",
 			includeAnswerDesc: "保留上游直接生成的智能成文总结（适用于 Perplexity、Exa 等）。",
-			limitsGroup: "结果限制与超时预算",
+			limitsGroup: "超时预算",
 			filterGroup: "结果去重与内容偏好",
 			notSaved: "修改保存后生效。",
 		};
@@ -359,7 +355,6 @@ window.__ModuleLoader__.load({
 				return {
 					...this.shell,
 					mode: this.field("mode"),
-					maxResults: this.field("maxResults"),
 					attemptTimeoutMs: this.field("attemptTimeoutMs"),
 					totalTimeoutMs: this.field("totalTimeoutMs"),
 					dedupeByUrl: this.field("dedupeByUrl"),
@@ -1281,19 +1276,12 @@ window.__ModuleLoader__.load({
 						h("div", { style: styles.modeNotice }, t("modeHint")),
 					),
 
-					// Card 2: Numeric limits & timeouts
+					// Card 2: timeouts. `max_results` is intentionally absent: it is a
+					// per-call request input in the core contract, not a DSH setting.
 					h("div", { style: styles.policyCard },
 						h("div", { style: styles.policyCardHeader },
 							h("h4", { style: styles.policyCardTitle }, t("limitsGroup")),
 						),
-						h(ScalarRow, {
-							key: "maxResults", t, id: "aws-maxResults",
-							label: t("maxResults"), description: t("maxResultsDesc"),
-							field: state.maxResults, numeric: true, disabled,
-							invalid: state.invalid === "maxResults",
-							onEdit: text => props.edit("maxResults", text),
-							onReset: () => props.resetField("maxResults"),
-						}),
 						h(ScalarRow, {
 							key: "attemptTimeoutMs", t, id: "aws-attemptTimeoutMs",
 							label: t("attemptTimeout"), description: t("attemptTimeoutDesc"),

@@ -3,7 +3,6 @@ import { spawn as defaultSpawn } from 'node:child_process'
 const DEFAULT_COMMAND = 'agent-web-search-mcp'
 const DEFAULT_PROTOCOL_VERSION = '2025-06-18'
 const MAX_OUTPUT_BYTES = 1024 * 1024
-const MAX_RESULTS = 20
 
 const CREDENTIAL_ENV = {
   ark: 'ARK_API_KEY',
@@ -137,54 +136,85 @@ function withAbort(signal, promise) {
   })
 }
 
-function sourceUrl(raw) {
-  if (typeof raw !== 'string') return undefined
-  try {
-    const url = new URL(raw.trim())
-    if (url.protocol !== 'http:' && url.protocol !== 'https:') return undefined
-    if (url.username || url.password || url.hash) return undefined
-    return url.href
-  } catch { return undefined }
+function isPlainObject(value) {
+  return value !== null && typeof value === 'object' && !Array.isArray(value)
 }
 
-function mapProviderPayload(payload, maxResults) {
-  if (!payload || typeof payload !== 'object' || !payload.providers || typeof payload.providers !== 'object') {
+/** Only expose safe navigable web URLs to DSH citation surfaces. */
+export function isSafeSourceUrl(value) {
+  if (typeof value !== 'string' || value.length === 0) return false
+  try {
+    const url = new URL(value)
+    return (url.protocol === 'http:' || url.protocol === 'https:')
+      && url.hostname.length > 0
+      && url.username === ''
+      && url.password === ''
+      && url.hash === ''
+  } catch {
+    return false
+  }
+}
+
+/**
+ * Validate and preserve the shared Python/MCP success payload.
+ *
+ * The bridge runs one MCP child per DSH upstream, but the child still returns
+ * the public `{ query, providers }` envelope. Do not flatten that envelope at
+ * this boundary: the model-facing native tool must retain provider grouping and
+ * the core field names. The DSH citation projection is built separately by the
+ * engine after this validation step.
+ */
+function mapProviderPayload(payload, expectedProvider) {
+  if (!isPlainObject(payload) || typeof payload.query !== 'string' || !isPlainObject(payload.providers)) {
     throw providerError('MCP result was malformed', 'malformed_result')
   }
-  const sources = []
-  const answers = []
-  const labels = {
-    ark: 'ARK', brave: 'Brave', deepseek: 'DeepSeek', ddgs: 'DuckDuckGo', exa: 'Exa',
-    gemini: 'Gemini', grok: 'Grok', messages: 'Anthropic Messages', parallel: 'Parallel',
-    perplexity: 'Perplexity', responses: 'OpenAI Responses', tavily: 'Tavily', you: 'You.com',
-    codex_alpha: 'Codex Alpha',
-    zhipu_web_search: 'Zhipu Web Search', zhipu_chat_search: 'Zhipu Chat Search',
+  const providerNames = Object.keys(payload.providers)
+  if (expectedProvider !== undefined && (
+    providerNames.length !== 1 || providerNames[0] !== expectedProvider
+  )) {
+    throw providerError('MCP result contained an unexpected provider payload', 'malformed_result')
   }
+  const providers = {}
   for (const [provider, value] of Object.entries(payload.providers)) {
-    if (!value || typeof value !== 'object') continue
-    const label = labels[provider] ?? provider
-    if (typeof value.answer === 'string' && value.answer.trim()) {
-      answers.push(`【来源：${labels[provider] ?? provider}】\n${value.answer.trim()}`)
+    if (!isPlainObject(value) || !Array.isArray(value.results)) {
+      throw providerError('MCP result contained an invalid provider response', 'malformed_result')
     }
-    if (!Array.isArray(value.results)) continue
+    if (value.answer !== undefined && typeof value.answer !== 'string') {
+      throw providerError('MCP result contained an invalid provider answer', 'malformed_result')
+    }
+    const results = []
+    // No DSH-side truncation: the core already bounds result counts, and every
+    // returned row belongs in the model-facing payload.
+    //
+    // A row whose URL is not a safe navigable web URL is *dropped*, never
+    // thrown: it is untrusted upstream data, and letting one bad row fail the
+    // whole provider would hand a compromised upstream a denial-of-service
+    // lever over the entire search. Malformed *types* are still protocol bugs
+    // and keep failing loudly.
     for (const row of value.results) {
-      const url = sourceUrl(row?.url)
-      if (!url) continue
-      sources.push({
-        title: `【来源：${label}】${typeof row.title === 'string' && row.title.trim() ? ` ${row.title.trim()}` : ''}`,
-        url,
-        ...(typeof row.description === 'string' && row.description.trim() ? { snippet: row.description.trim() } : {}),
-        ...(typeof row.published_at === 'string' ? { publishedAt: row.published_at } : {}),
-        ...(typeof row.author === 'string' ? { author: row.author } : {}),
+      if (!isPlainObject(row)
+        || typeof row.title !== 'string'
+        || typeof row.url !== 'string'
+        || typeof row.description !== 'string'
+        || (row.published_at !== undefined && typeof row.published_at !== 'string')
+        || (row.author !== undefined && typeof row.author !== 'string')) {
+        throw providerError('MCP result contained an invalid search result', 'malformed_result')
+      }
+      if (!isSafeSourceUrl(row.url)) continue
+      results.push({
+        title: row.title,
+        url: row.url,
+        description: row.description,
+        ...(row.published_at !== undefined ? { published_at: row.published_at } : {}),
+        ...(row.author !== undefined ? { author: row.author } : {}),
       })
-      if (sources.length >= maxResults * 4) break
+    }
+    providers[provider] = {
+      ...(typeof value.answer === 'string' && value.answer.length > 0 ? { answer: value.answer } : {}),
+      results,
     }
   }
-  return {
-    sources,
-    ...(answers.length > 0 ? { content: answers.join('\n\n') } : {}),
-    truncated: false,
-  }
+  return { query: payload.query, providers }
 }
 
 function publicProviderErrors(value) {
@@ -355,14 +385,17 @@ export class PythonSearchBridge {
       const envelope = await request.call(2, 'tools/call', {
         name: 'web_search',
         arguments: {
-          query, max_results: maxResults, providers,
+          query, providers,
+          // Omitted stays omitted: the core default (10) applies. Sending a
+          // DSH-side substitute here would silently override the core contract.
+          ...(maxResults !== undefined ? { max_results: maxResults } : {}),
           ...(timeRange ? { time_range: timeRange } : {}),
           // Python rejects grok_search_mode unless grok is enabled, and each
           // attempt requests exactly one provider, so gate on the kind.
           ...(grokMode && providers.includes('grok') ? { grok_search_mode: grokMode } : {}),
         },
       })
-      return mapProviderPayload(parseToolEnvelope(envelope), maxResults)
+      return mapProviderPayload(parseToolEnvelope(envelope), providers[0])
     } catch (error) {
       if (childSignal?.aborted) throw childSignal.reason ?? abortError()
       if (error?.name === 'TimeoutError') throw timeoutError()
@@ -433,7 +466,10 @@ function normalizedKey(url) {
   } catch { return url }
 }
 
-function mergeOutcomes(outcomes, maxResults, dedupeByUrl) {
+// Dedupe-only merge. The bridge no longer caps the merged list: `max_results`
+// bounds what each upstream is asked for, and the core already applies it, so
+// every returned row is passed through (after optional URL dedupe).
+function mergeOutcomes(outcomes, dedupeByUrl) {
   const sources = []
   const seen = new Set()
   const answers = []
@@ -444,19 +480,19 @@ function mergeOutcomes(outcomes, maxResults, dedupeByUrl) {
       if (dedupeByUrl && seen.has(key)) continue
       seen.add(key)
       sources.push(source)
-      if (sources.length >= maxResults) break
     }
-    if (sources.length >= maxResults) break
   }
   return {
     sources,
-    truncated: outcomes.some(outcome => outcome?.truncated) || sources.length >= maxResults,
+    // Nothing is dropped here anymore, so this stays false unless an upstream
+    // outcome reported its own truncation.
+    truncated: outcomes.some(outcome => outcome?.truncated === true),
     ...(answers.length > 0 ? { content: answers.join('\n\n---\n\n') } : {}),
   }
 }
 
-export function mergeBridgeOutcomes(outcomes, maxResults, dedupeByUrl = true) {
-  return mergeOutcomes(outcomes, Math.max(1, Math.min(MAX_RESULTS, Math.floor(maxResults))), dedupeByUrl)
+export function mergeBridgeOutcomes(outcomes, dedupeByUrl = true) {
+  return mergeOutcomes(outcomes, dedupeByUrl)
 }
 
 export { CREDENTIAL_ENV, ENDPOINT_ENV, BASE_URL_ENV, MODEL_ENV, MAX_OUTPUT_BYTES, mapProviderPayload, parseToolEnvelope }

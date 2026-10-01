@@ -19,14 +19,11 @@
 import z from '@deepseek-ai/schemastery'
 import {
   DEFAULT_ATTEMPT_TIMEOUT_MS,
-  DEFAULT_MAX_RESULTS,
   DEFAULT_QUEUE,
   DEFAULT_TOTAL_TIMEOUT_MS,
   MAX_ATTEMPT_TIMEOUT_MS,
-  MAX_MAX_RESULTS,
   MAX_TOTAL_TIMEOUT_MS,
   MIN_ATTEMPT_TIMEOUT_MS,
-  MIN_MAX_RESULTS,
   MIN_TOTAL_TIMEOUT_MS,
   MODES,
   PROVIDER_KINDS,
@@ -63,7 +60,9 @@ export const Config = z.object({
     snippetPath: z.string().default('/snippet'),
     publishedAtPath: z.string().default('/publishedAt'),
   })).max(40).default(DEFAULT_QUEUE.map(entry => ({ ...entry }))).volatile(),
-  maxResults: z.natural().min(MIN_MAX_RESULTS).max(MAX_MAX_RESULTS).default(DEFAULT_MAX_RESULTS).volatile(),
+  // No `maxResults` field: `max_results` is a per-call request input in the
+  // core contract (MCP argument / CLI --max-results), so DSH must not hold a
+  // persistent override for it. See ARCHITECTURE.md "Configuration".
   attemptTimeoutMs: z.natural().min(MIN_ATTEMPT_TIMEOUT_MS).max(MAX_ATTEMPT_TIMEOUT_MS).default(DEFAULT_ATTEMPT_TIMEOUT_MS).volatile(),
   totalTimeoutMs: z.natural().min(MIN_TOTAL_TIMEOUT_MS).max(MAX_TOTAL_TIMEOUT_MS).default(DEFAULT_TOTAL_TIMEOUT_MS).volatile(),
   dedupeByUrl: z.boolean().default(true).volatile(),
@@ -100,7 +99,7 @@ export function normalizeEntry(entry) {
  * never be queued twice even if a hand-written profile patch says so.
  *
  * @param {object} [input] - composition entry config, settings-section value, or volatile snapshots.
- * @returns {{mode: string, providers: Array<{kind: string, enabled: boolean, baseURL?: string}>, maxResults: number, attemptTimeoutMs: number, totalTimeoutMs: number, dedupeByUrl: boolean, includeAnswer: boolean}} the resolved config.
+ * @returns {{mode: string, providers: Array<{kind: string, enabled: boolean, baseURL?: string}>, attemptTimeoutMs: number, totalTimeoutMs: number, dedupeByUrl: boolean, includeAnswer: boolean}} the resolved config.
  */
 export function resolveConfig(input = {}) {
   // Re-validating fills the schema defaults; volatile wrappers are unwrapped
@@ -117,7 +116,6 @@ export function resolveConfig(input = {}) {
   return {
     mode: resolved.mode.get(),
     providers,
-    maxResults: resolved.maxResults.get(),
     attemptTimeoutMs: resolved.attemptTimeoutMs.get(),
     totalTimeoutMs: resolved.totalTimeoutMs.get(),
     dedupeByUrl: resolved.dedupeByUrl.get(),
@@ -138,7 +136,6 @@ export function snapshotsOf(config) {
   return {
     mode: config.mode.get(),
     providers: [...config.providers.get()],
-    maxResults: config.maxResults.get(),
     attemptTimeoutMs: config.attemptTimeoutMs.get(),
     totalTimeoutMs: config.totalTimeoutMs.get(),
     dedupeByUrl: config.dedupeByUrl.get(),
@@ -148,13 +145,10 @@ export function snapshotsOf(config) {
 
 export {
   DEFAULT_ATTEMPT_TIMEOUT_MS,
-  DEFAULT_MAX_RESULTS,
   DEFAULT_QUEUE,
   DEFAULT_TOTAL_TIMEOUT_MS,
   MAX_ATTEMPT_TIMEOUT_MS,
-  MAX_MAX_RESULTS,
   MAX_TOTAL_TIMEOUT_MS,
   MIN_ATTEMPT_TIMEOUT_MS,
-  MIN_MAX_RESULTS,
   MIN_TOTAL_TIMEOUT_MS,
 }

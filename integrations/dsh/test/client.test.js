@@ -31,7 +31,7 @@ function mounted(fetchImpl, options = {}) {
   const registrations = []
   const writes = []
   const value = {
-    mode: 'fanout', maxResults: 8, attemptTimeoutMs: 12000, totalTimeoutMs: 30000,
+    mode: 'fanout', attemptTimeoutMs: 12000, totalTimeoutMs: 30000,
     dedupeByUrl: true, includeAnswer: true,
     providers: options.providers ?? [{ kind: 'retired_source', enabled: true, baseURL: 'http://127.0.0.1:8045/v1beta' }],
   }

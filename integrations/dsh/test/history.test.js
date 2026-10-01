@@ -12,7 +12,7 @@ const result = url => ({ url, title: url, description: 'result body must not app
 function config(providers, mode = 'fanout') {
   const wrap = value => ({ get: () => value })
   return {
-    mode: wrap(mode), providers: wrap(providers), maxResults: wrap(8),
+    mode: wrap(mode), providers: wrap(providers),
     attemptTimeoutMs: wrap(2000), totalTimeoutMs: wrap(5000),
     dedupeByUrl: wrap(true), includeAnswer: wrap(false),
   }

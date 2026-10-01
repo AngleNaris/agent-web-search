@@ -12,16 +12,18 @@ const BASE_PROVIDERS = [
 function config(overrides = {}) {
   const wrap = value => ({ get: () => value })
   return {
-    mode: wrap('fanout'), providers: wrap(BASE_PROVIDERS), maxResults: wrap(8),
+    mode: wrap('fanout'), providers: wrap(BASE_PROVIDERS),
     attemptTimeoutMs: wrap(2000), totalTimeoutMs: wrap(5000),
     dedupeByUrl: wrap(true), includeAnswer: wrap(false),
     ...overrides,
   }
 }
 
-const okPayload = () => ({
-  sources: [{ title: 'A', url: 'https://example.org/a', snippet: 'summary' }],
-  truncated: false,
+const okPayload = ({ query, providers }) => ({
+  query,
+  providers: {
+    [providers[0]]: { results: [{ title: 'A', url: 'https://example.org/a', description: 'summary' }] },
+  },
 })
 
 function fakeBridge(impl = okPayload) {
@@ -89,7 +91,7 @@ test('skips registration when a web_search tool already exists', () => {
   assert.equal(stages.tool, undefined)
 })
 
-test('executes with per-call args and projects sources', async () => {
+test('executes with per-call args and returns the core provider envelope', async () => {
   const { stages, calls } = setup()
   const result = await stages.tool.execute(
     { query: 'latest news', max_results: 3, time_range: 'w' },
@@ -98,9 +100,54 @@ test('executes with per-call args and projects sources', async () => {
   assert.equal(calls.length, 2)
   assert.deepEqual(calls.map(call => call.providers), [['ddgs'], ['exa']])
   assert.ok(calls.every(call => call.timeRange === 'w'))
-  assert.equal(result.sources.length, 1) // same URL from both upstreams is deduplicated
-  assert.equal(result.sources[0].url, 'https://example.org/a')
-  assert.equal(result.truncated, false)
+  assert.ok(calls.every(call => call.maxResults === 3))
+  assert.equal(result.query, 'latest news')
+  assert.deepEqual(Object.keys(result.providers), ['ddgs', 'exa'])
+  assert.equal(result.providers.ddgs.results[0].url, 'https://example.org/a')
+  assert.equal(result.providers.exa.results[0].description, 'summary')
+})
+
+test('omitted max_results stays omitted so the core default applies', async () => {
+  const { stages, calls } = setup()
+  await stages.tool.execute({ query: 'q', providers: ['ddgs'] }, { signal: undefined })
+  assert.equal(calls.length, 1)
+  // No DSH-side substitute: `max_results` is a per-call request input, so the
+  // core default (10) still applies downstream.
+  assert.equal(calls[0].maxResults, undefined)
+})
+
+test('keeps provider answers in the model payload when card answers are disabled', async () => {
+  const { stages } = setup({
+    impl: ({ query, providers }) => ({
+      query,
+      providers: { [providers[0]]: { answer: 'core answer', results: [] } },
+    }),
+  })
+  const result = await stages.tool.execute({ query: 'q', providers: ['ddgs'] }, { signal: undefined })
+  assert.deepEqual(result, {
+    query: 'q',
+    providers: { ddgs: { answer: 'core answer', results: [] } },
+  })
+})
+
+test('returns the canonical structured all-provider failure envelope', async () => {
+  const { stages } = setup({
+    impl: ({ providers }) => {
+      const error = new Error('upstream details must stay internal')
+      error.code = 'all_providers_failed'
+      error.providerErrors = { [providers[0]]: 'provider unavailable' }
+      throw error
+    },
+  })
+  const result = await stages.tool.execute({ query: 'q', providers: ['ddgs'] }, { signal: undefined })
+  assert.deepEqual(result, {
+    error: {
+      code: 'all_providers_failed',
+      message: 'All enabled search providers failed. Check provider configuration, credentials, quotas, and network access.',
+      provider_errors: { ddgs: 'provider unavailable' },
+    },
+    query: 'q',
+  })
 })
 
 test('honors provider subsets and falls back to card defaults', async () => {
@@ -148,4 +195,103 @@ test('presenters title cards by query and carry structured sources', () => {
   })
   assert.equal(shown.card, 'web')
   assert.deepEqual(shown.sources, [{ url: 'https://example.org/a' }])
+})
+
+test('the citation card shows every distinct row and reports no truncation', () => {
+  const { stages } = setup()
+  const rows = Array.from({ length: 25 }, (_, index) => ({
+    title: `T${index}`,
+    url: `https://example.org/${index}`,
+    description: `D${index}`,
+  }))
+  // Even a per-call max_results must not shorten what the card displays.
+  const meta = stages.tool.output.presentationMeta(
+    { query: 'q', max_results: 3 },
+    { query: 'q', providers: { ddgs: { results: rows } } },
+  )
+  assert.equal(meta.sources.length, 25)
+  assert.equal(meta.truncated, false)
+})
+
+test('the citation card dedupes by URL and drops unsafe URLs', () => {
+  const { stages } = setup()
+  const meta = stages.tool.output.presentationMeta(
+    { query: 'q' },
+    {
+      query: 'q',
+      providers: {
+        ddgs: {
+          results: [
+            { title: 'A', url: 'https://example.org/a', description: 'x' },
+            { title: 'dupe', url: 'https://example.org/a/', description: 'y' },
+            { title: 'B', url: 'https://example.org/b', description: 'z' },
+          ],
+        },
+        exa: {
+          results: [
+            { title: 'Cross-provider dupe', url: 'https://example.org/a', description: 'again' },
+            { title: 'Unsafe', url: 'javascript:alert(1)', description: 'no' },
+          ],
+        },
+      },
+    },
+  )
+  // Trailing-slash duplicates collapse; the unsafe javascript: row is gone.
+  assert.deepEqual(meta.sources.map(source => source.url), [
+    'https://example.org/a', 'https://example.org/b',
+  ])
+})
+
+// The two remaining policy switches are the settings card's own design and must
+// keep their exact behavior: URL dedupe collapses repeats, and the prose-answer
+// switch only ever governs the card (never the core model payload).
+test('turning URL dedupe off keeps every duplicate on the card', () => {
+  const wrap = value => ({ get: () => value })
+  const { stages } = setup({ cfg: config({ dedupeByUrl: wrap(false) }) })
+  const meta = stages.tool.output.presentationMeta(
+    { query: 'q' },
+    {
+      query: 'q',
+      providers: {
+        ddgs: {
+          results: [
+            { title: 'A', url: 'https://example.org/a', description: 'x' },
+            { title: 'dupe', url: 'https://example.org/a/', description: 'y' },
+          ],
+        },
+      },
+    },
+  )
+  assert.deepEqual(meta.sources.map(source => source.url), [
+    'https://example.org/a', 'https://example.org/a/',
+  ])
+})
+
+test('the prose-answer switch governs the card only', async () => {
+  const wrap = value => ({ get: () => value })
+  const upstream = ({ query, providers }) => ({
+    query,
+    providers: { [providers[0]]: { answer: 'upstream prose', results: [] } },
+  })
+  const withAnswers = setup({ cfg: config({ includeAnswer: wrap(true) }), impl: upstream })
+  const withoutAnswers = setup({ cfg: config({ includeAnswer: wrap(false) }), impl: upstream })
+
+  const cardOn = withAnswers.stages.tool.output.presentationMeta(
+    { query: 'q' },
+    { query: 'q', providers: { ddgs: { answer: 'upstream prose', results: [] } } },
+  )
+  const cardOff = withoutAnswers.stages.tool.output.presentationMeta(
+    { query: 'q' },
+    { query: 'q', providers: { ddgs: { answer: 'upstream prose', results: [] } } },
+  )
+  assert.equal(cardOn.answer, 'upstream prose')
+  assert.equal('answer' in cardOff, false)
+
+  // Either way the model-facing payload keeps the provider answer, exactly as
+  // the MCP operation does.
+  const result = await withoutAnswers.stages.tool.execute({ query: 'q', providers: ['ddgs'] }, { signal: undefined })
+  assert.deepEqual(result, {
+    query: 'q',
+    providers: { ddgs: { answer: 'upstream prose', results: [] } },
+  })
 })

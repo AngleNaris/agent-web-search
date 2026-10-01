@@ -42,12 +42,15 @@ function replyToCalls(payload, calls) {
     if (message.method === 'initialize') {
       child.reply({ jsonrpc: '2.0', id: message.id, result: { protocolVersion: '2025-06-18' } })
     } else if (message.method === 'tools/call') {
-      child.reply({ jsonrpc: '2.0', id: message.id, result: { content: [{ type: 'text', text: JSON.stringify(payload) }] } })
+      const response = payload?.error
+        ? payload
+        : { query: message.params.arguments.query, ...payload }
+      child.reply({ jsonrpc: '2.0', id: message.id, result: { content: [{ type: 'text', text: JSON.stringify(response) }] } })
     }
   }
 }
 
-test('bridge calls only web_search, propagates maxResults, maps citations, and cleans up', async () => {
+test('bridge calls only web_search, propagates maxResults, preserves the native payload, and cleans up', async () => {
   const state = {}
   const calls = []
   let childEnvironment
@@ -55,7 +58,7 @@ test('bridge calls only web_search, propagates maxResults, maps citations, and c
     command: 'fake-agent-web-search-mcp',
     spawn: (command, args, options) => {
       childEnvironment = options.env
-      return spawnFor(replyToCalls({ providers: { exa: { results: [{ title: 'A', url: 'https://example.org/a', description: 'summary' }] } } }, calls), state)(command, args, options)
+      return spawnFor(replyToCalls({ providers: { exa: { answer: 'answer', results: [{ title: 'A', url: 'https://example.org/a', description: 'summary', published_at: '2025-01-02', author: 'Author' }] } } }, calls), state)(command, args, options)
     },
     env: { PATH: '/bin' }, lineMode: true,
   })
@@ -72,9 +75,35 @@ test('bridge calls only web_search, propagates maxResults, maps citations, and c
   assert.deepEqual(calls.find(call => call.method === 'tools/call').params, {
     name: 'web_search', arguments: { query: 'latest question', max_results: 2, providers: ['exa'] },
   })
-  assert.equal(result.sources[0].url, 'https://example.org/a')
-  assert.equal(result.sources[0].title, '【来源：Exa】 A')
+  assert.deepEqual(result, {
+    query: 'latest question',
+    providers: {
+      exa: {
+        answer: 'answer',
+        results: [{
+          title: 'A', url: 'https://example.org/a', description: 'summary',
+          published_at: '2025-01-02', author: 'Author',
+        }],
+      },
+    },
+  })
   assert.equal(state.child.killed, true)
+})
+
+test('bridge omits max_results so the core default applies when the caller does not set one', async () => {
+  const state = {}
+  const calls = []
+  const bridge = new PythonSearchBridge({
+    spawn: (command, args, options) => spawnFor(replyToCalls({ providers: { exa: { results: [] } } }, calls), state)(command, args, options),
+    env: {}, lineMode: true,
+  })
+  await bridge.search({
+    query: 'q', providers: ['exa'], entries: [{ kind: 'exa' }],
+    resolveValue: async () => undefined, timeoutMs: 1000,
+  })
+  assert.deepEqual(calls.find(call => call.method === 'tools/call').params.arguments, {
+    query: 'q', providers: ['exa'],
+  })
 })
 
 test('bridge strips inherited provider endpoint overrides before spawning', async () => {
@@ -84,7 +113,7 @@ test('bridge strips inherited provider endpoint overrides before spawning', asyn
   const bridge = new PythonSearchBridge({
     spawn: (command, args, options) => {
       childEnvironment = options.env
-      return spawnFor(replyToCalls({ providers: { exa: { results: [{ title: 'A', url: 'https://example.org/a' }] } } }, calls), state)(command, args, options)
+      return spawnFor(replyToCalls({ providers: { exa: { results: [{ title: 'A', url: 'https://example.org/a', description: 'summary' }] } } }, calls), state)(command, args, options)
     },
     env: {
       AGENT_WEB_SEARCH_EXA_ENDPOINT: 'https://stale.example/exa',
@@ -162,7 +191,7 @@ test('bridge forwards per-source models and clears inherited model vars', async 
     command: 'fake-agent-web-search-mcp',
     spawn: (command, args, options) => {
       childEnvironment = options.env
-      return spawnFor(replyToCalls({ providers: { deepseek: { results: [{ title: 'A', url: 'https://example.org/a' }] } } }, calls), state)(command, args, options)
+      return spawnFor(replyToCalls({ providers: { deepseek: { results: [{ title: 'A', url: 'https://example.org/a', description: 'summary' }] } } }, calls), state)(command, args, options)
     },
     env: { PATH: '/bin', AGENT_WEB_SEARCH_DEEPSEEK_MODELS: 'stale-model', AGENT_WEB_SEARCH_GEMINI_MODELS: 'stale-model' }, lineMode: true,
   })
@@ -173,7 +202,7 @@ test('bridge forwards per-source models and clears inherited model vars', async 
   })
   assert.equal(childEnvironment.AGENT_WEB_SEARCH_DEEPSEEK_MODELS, 'deepseek-v4-flash, deepseek-v4-pro')
   assert.equal(childEnvironment.AGENT_WEB_SEARCH_GEMINI_MODELS, undefined)
-  assert.equal(result.sources.length, 1)
+  assert.equal(result.providers.deepseek.results.length, 1)
 })
 
 test('bridge passes time_range to the MCP call only when configured', async () => {
@@ -181,7 +210,7 @@ test('bridge passes time_range to the MCP call only when configured', async () =
     const state = {}
     const calls = []
     const bridge = new PythonSearchBridge({
-      spawn: spawnFor(replyToCalls({ providers: { ddgs: { results: [{ title: 'A', url: 'https://example.org/a' }] } } }, calls), state),
+      spawn: spawnFor(replyToCalls({ providers: { ddgs: { results: [{ title: 'A', url: 'https://example.org/a', description: 'summary' }] } } }, calls), state),
       env: {}, lineMode: true,
     })
     await bridge.search({
@@ -201,7 +230,7 @@ test('bridge forwards tool type/name overrides and clears inherited ones', async
     command: 'fake-agent-web-search-mcp',
     spawn: (command, args, options) => {
       childEnvironment = options.env
-      return spawnFor(replyToCalls({ providers: { messages: { results: [{ title: 'A', url: 'https://example.org/a' }] } } }, calls), state)(command, args, options)
+      return spawnFor(replyToCalls({ providers: { messages: { results: [{ title: 'A', url: 'https://example.org/a', description: 'summary' }] } } }, calls), state)(command, args, options)
     },
     env: { PATH: '/bin', AGENT_WEB_SEARCH_MESSAGES_TOOL_TYPE: 'stale-type', AGENT_WEB_SEARCH_RESPONSES_TOOL_TYPE: 'stale-type' }, lineMode: true,
   })
@@ -220,7 +249,7 @@ test('bridge sends grok_search_mode only on grok attempts', async () => {
     const state = {}
     const calls = []
     const bridge = new PythonSearchBridge({
-      spawn: spawnFor(replyToCalls({ providers: { [kind]: { results: [{ title: 'A', url: 'https://example.org/a' }] } } }, calls), state),
+      spawn: spawnFor(replyToCalls({ providers: { [kind]: { results: [{ title: 'A', url: 'https://example.org/a', description: 'summary' }] } } }, calls), state),
       env: {}, lineMode: true,
     })
     await bridge.search({

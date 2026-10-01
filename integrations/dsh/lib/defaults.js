@@ -185,9 +185,8 @@ export const DEFAULT_ATTEMPT_TIMEOUT_MS = 12000
 export const MIN_TOTAL_TIMEOUT_MS = 2000
 export const MAX_TOTAL_TIMEOUT_MS = 180000
 export const DEFAULT_TOTAL_TIMEOUT_MS = 30000
-export const MIN_MAX_RESULTS = 1
-export const MAX_MAX_RESULTS = 20
-export const DEFAULT_MAX_RESULTS = 8
+// No max-results constants here: `max_results` is a per-call request input
+// (core default 10, range 1-20), owned by the core schema, not by DSH config.
 
 /** The id this plugin registers its provider under in the `ctx.web` seam. */
 export const AGENT_WEB_SEARCH_PROVIDER_ID = 'agent-web-search'
