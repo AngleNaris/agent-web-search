@@ -30,3 +30,12 @@ test('malformed and provider-error MCP results are sanitized', () => {
     return true
   })
 })
+
+test('codex answers carry a readable provider label', () => {
+  const result = mapProviderPayload({
+    providers: {
+      codex_alpha: { answer: 'Alpha says hi', results: [] },
+    },
+  }, 4)
+  assert.equal(result.content, '【来源：Codex Alpha】\nAlpha says hi')
+})

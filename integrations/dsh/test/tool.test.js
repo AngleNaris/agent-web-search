@@ -15,7 +15,6 @@ function config(overrides = {}) {
     mode: wrap('fanout'), providers: wrap(BASE_PROVIDERS), maxResults: wrap(8),
     attemptTimeoutMs: wrap(2000), totalTimeoutMs: wrap(5000),
     dedupeByUrl: wrap(true), includeAnswer: wrap(false),
-    timeRange: wrap(''), grokMode: wrap(''),
     ...overrides,
   }
 }
@@ -62,11 +61,27 @@ test('registers web_search with the MCP-consistent schema', () => {
   assert.equal(stages.tool.name, 'web_search')
   const params = stages.tool.parameters
   const props = params.properties
-  assert.deepEqual(Object.keys(props).sort(), ['grok_search_mode', 'max_results', 'providers', 'query', 'time_range'])
+  // grok is disabled here, so grok_search_mode stays out of the schema,
+  // exactly like the Python operation builds it.
+  assert.deepEqual(Object.keys(props).sort(), ['max_results', 'providers', 'query', 'time_range'])
   assert.deepEqual(params.required, ['query'])
   assert.deepEqual(props.time_range.enum, ['d', 'w', 'm', 'y'])
-  assert.deepEqual(props.grok_search_mode.enum, ['web_search', 'x_search', 'both'])
+  assert.deepEqual(props.providers.items.enum, ['ddgs', 'exa'])
   assert.equal(stages.sections.map(section => section.name).includes('tool:web_search'), true)
+})
+
+test('schema gains grok_search_mode only when grok is enabled', () => {
+  const wrap = value => ({ get: () => value })
+  const grokOn = config({
+    providers: wrap([
+      { kind: 'ddgs', enabled: true, baseURL: '' },
+      { kind: 'grok', enabled: true, baseURL: '' },
+    ]),
+  })
+  const { stages } = setup({ cfg: grokOn })
+  const props = stages.tool.parameters.properties
+  assert.deepEqual(props.grok_search_mode.enum, ['web_search', 'x_search', 'both'])
+  assert.deepEqual(props.providers.items.enum, ['ddgs', 'grok'])
 })
 
 test('skips registration when a web_search tool already exists', () => {
@@ -92,15 +107,15 @@ test('honors provider subsets and falls back to card defaults', async () => {
   const { stages, calls } = setup()
   await stages.tool.execute({ query: 'q', providers: ['exa'] }, { signal: undefined })
   assert.deepEqual(calls.map(call => call.providers), [['exa']])
-  assert.equal(calls[0].timeRange, '')
-  assert.equal(calls[0].grokMode, '')
+  assert.equal(calls[0].timeRange, undefined)
+  assert.equal(calls[0].grokMode, undefined)
 })
 
 test('rejects MCP-inconsistent arguments like the Python operation', async () => {
   const { stages } = setup()
   await assert.rejects(stages.tool.execute({ query: 'q', max_results: 99 }, {}), /max_results must be an integer between 1 and 20/)
   await assert.rejects(stages.tool.execute({ query: 'q', time_range: 'x' }, {}), /time_range/)
-  await assert.rejects(stages.tool.execute({ query: 'q', providers: ['nope'] }, {}), /providers are not enabled: nope/)
+  await assert.rejects(stages.tool.execute({ query: 'q', providers: ['nope'] }, {}), /providers/)
   await assert.rejects(stages.tool.execute({ query: 'q', grok_search_mode: 'both' }, {}), /grok_search_mode is only available when grok is enabled/)
   await assert.rejects(stages.tool.execute({ query: '  ' }, {}), /query must be a non-empty string/)
 })

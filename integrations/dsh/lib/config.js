@@ -28,10 +28,8 @@ import {
   MIN_ATTEMPT_TIMEOUT_MS,
   MIN_MAX_RESULTS,
   MIN_TOTAL_TIMEOUT_MS,
-  GROK_MODES,
   MODES,
   PROVIDER_KINDS,
-  TIME_RANGES,
 } from './defaults.js'
 
 /**
@@ -70,14 +68,6 @@ export const Config = z.object({
   totalTimeoutMs: z.natural().min(MIN_TOTAL_TIMEOUT_MS).max(MAX_TOTAL_TIMEOUT_MS).default(DEFAULT_TOTAL_TIMEOUT_MS).volatile(),
   dedupeByUrl: z.boolean().default(true).volatile(),
   includeAnswer: z.boolean().default(true).volatile(),
-  // Default time filter applied to every search: '' means no filter.
-  // The model-facing tool takes no time_range argument, so this card value
-  // is the only source.
-  timeRange: z.union(TIME_RANGES).default('').volatile(),
-  // Default Grok search mode applied to every search: '' omits the argument
-  // and Python defaults to web_search. Only sent on grok attempts: Python
-  // rejects grok_search_mode when grok is not enabled.
-  grokMode: z.union(GROK_MODES).default('').volatile(),
 })
 
 /**
@@ -132,8 +122,6 @@ export function resolveConfig(input = {}) {
     totalTimeoutMs: resolved.totalTimeoutMs.get(),
     dedupeByUrl: resolved.dedupeByUrl.get(),
     includeAnswer: resolved.includeAnswer.get(),
-    timeRange: resolved.timeRange.get(),
-    grokMode: resolved.grokMode.get(),
   }
 }
 
@@ -155,8 +143,6 @@ export function snapshotsOf(config) {
     totalTimeoutMs: config.totalTimeoutMs.get(),
     dedupeByUrl: config.dedupeByUrl.get(),
     includeAnswer: config.includeAnswer.get(),
-    timeRange: config.timeRange.get(),
-    grokMode: config.grokMode.get(),
   }
 }
 

@@ -39,12 +39,10 @@ export {
   KIND_CREDENTIAL_REF,
   KIND_DEFAULT_BASE_URL,
   KIND_DEFAULT_MODELS,
-  GROK_MODES,
   KIND_LABEL,
   MODEL_ENV,
   PACKAGE_NAME,
   PROVIDER_KINDS,
-  TIME_RANGES,
 } from './defaults.js'
 
 /** Cordis plugin name used by loader diagnostics. */

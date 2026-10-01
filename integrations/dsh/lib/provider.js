@@ -68,8 +68,9 @@ export class AgentWebSearchProvider {
         mode: config.mode,
         providers: entries,
         query: request?.query,
-        timeRange: overrides.timeRange ?? config.timeRange,
-        grokMode: overrides.grokMode ?? config.grokMode,
+        // Per-call only: no card defaults. Omitted means Python defaults.
+        timeRange: overrides.timeRange,
+        grokMode: overrides.grokMode,
         maxResults,
         attemptTimeoutMs: config.attemptTimeoutMs,
         totalTimeoutMs: config.totalTimeoutMs,

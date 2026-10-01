@@ -33,7 +33,8 @@
    且该命令所在目录在 DSH 进程的 PATH 里；
    如果不在 PATH 里，用 AGENT_WEB_SEARCH_MCP_COMMAND 指向可执行文件绝对路径。
 
-3. 确认模型侧 web_search 入口可用（tool-web 开启），
+3. 确认模型侧 `web_search` 的参数是 `query`/`max_results`/`time_range`/
+   `providers`（`grok_search_mode` 仅 grok 启用时出现），
    且 web.searchProvider 指向 agent-web-search，
    内置 web-search-deepseek 处于关闭状态。
 
@@ -62,8 +63,8 @@ agent-web-search-mcp --help
 
 然后在 DSH「设置 → 插件」里确认 `dsh-agent-web-search` 已启用，
 在「设置 → agent-web-search」里可以看到上游列表、搜索策略和调用记录。
-如果模型侧没有 `web_search` 工具，把 `tool-web`（`include:tool-web`）打开；
-插件的 Cordis patch 只覆盖 `web.searchProvider`，不负责开关模型工具入口。
+模型侧 `web_search` 由插件自己注册（参数与 Python 操作一致），不需要开
+`tool-web`；`web_fetch` 仍由出厂 `tool-web` 行提供，不受影响。
 
 ## 验证清单
 
@@ -72,8 +73,8 @@ agent-web-search-mcp --help
 - [ ] 内置 `web-search-deepseek` 已关闭（避免页面上挂着一个永远不被选中的 provider）。
 - [ ] `agent-web-search-mcp --help` 在 DSH 宿主环境里能运行。
 - [ ] 用 `web_search` 搜一次能返回带 `【来源：…】` 归因的结果。
-- [ ] 需要换模型的上游在来源展开面板里填了模型；需要时间过滤时在搜索策略
-      里选了时间范围；Codex Alpha 除了 Key 还填了网关地址。
+- [ ] 需要换模型的上游在来源展开面板里填了模型；Codex Alpha 除了 Key
+      还填了网关地址；时间过滤和 Grok 模式由模型按次传入，不在卡片上配置。
 
 ## 排错
 

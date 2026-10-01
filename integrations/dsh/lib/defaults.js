@@ -133,11 +133,6 @@ export const KIND_DEFAULT_MODELS = {
   codex_alpha: 'gpt-5.6-luna',
 }
 
-/** Accepted `timeRange` values: '' means no time filter. */
-export const TIME_RANGES = ['', 'd', 'w', 'm', 'y']
-
-/** Accepted card-level `grokMode` values: '' means omit (Python defaults to web_search). */
-export const GROK_MODES = ['', 'web_search', 'x_search', 'both']
 
 /**
  * The shipped default queue.

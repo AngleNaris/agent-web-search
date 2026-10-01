@@ -9,7 +9,6 @@ function config() {
     providers: wrap([{ kind: 'ddgs', enabled: true, baseURL: '' }]),
     maxResults: wrap(8), attemptTimeoutMs: wrap(2000), totalTimeoutMs: wrap(5000),
     dedupeByUrl: wrap(true), includeAnswer: wrap(false),
-    timeRange: wrap(''), grokMode: wrap(''),
   }
 }
 

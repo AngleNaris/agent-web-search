@@ -157,6 +157,7 @@ function mapProviderPayload(payload, maxResults) {
     ark: 'ARK', brave: 'Brave', deepseek: 'DeepSeek', ddgs: 'DuckDuckGo', exa: 'Exa',
     gemini: 'Gemini', grok: 'Grok', messages: 'Anthropic Messages', parallel: 'Parallel',
     perplexity: 'Perplexity', responses: 'OpenAI Responses', tavily: 'Tavily', you: 'You.com',
+    codex_alpha: 'Codex Alpha',
     zhipu_web_search: 'Zhipu Web Search', zhipu_chat_search: 'Zhipu Chat Search',
   }
   for (const [provider, value] of Object.entries(payload.providers)) {

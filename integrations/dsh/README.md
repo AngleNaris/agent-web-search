@@ -11,7 +11,7 @@ The bundle also replaces the model-facing tool itself: the shipped
 `tool-web` row is switched to `search: false` (keeping `web_fetch`) and this
 plugin registers its own `web_search` with the same parameters as the Python
 operation — `query`, `max_results`, `time_range`, `providers`, and
-`grok_search_mode`. Card values act as defaults for omitted arguments.
+`grok_search_mode`. An omitted `max_results` falls back to the card value; `time_range` and `grok_search_mode` are per-call only.
 
 ## Architecture
 
@@ -62,18 +62,20 @@ controls retain the following runtime behavior:
 
 - `fanout` and `fallback` execution modes;
 - provider enablement/order, max results, per-attempt timeout, total timeout,
-  URL de-duplication, answer inclusion, and a default time range
-  (`d`/`w`/`m`/`y`, blank means unfiltered);
+  URL de-duplication, and answer inclusion;
 - per-upstream model text for model-backed upstreams (DeepSeek, Gemini, Grok,
   ARK, Zhipu chat search, generic Messages/Responses, Codex Alpha):
   comma-separated model names, blank means the backend default;
 - native tool type/name overrides for the generic Messages backend and tool
   type override for the Responses backend; blank means the backend default;
-- default Grok search mode (`web_search`/`x_search`/`both`) applied to every
-  search when grok is enabled;
 - DSH credential references, which are resolved server-side and never persisted
   in the provider queue or sent to the model; and
 - bounded in-memory call history and authenticated diagnostics.
+
+`time_range` and `grok_search_mode` are per-call tool arguments with no card
+equivalent. The tool schema itself is built from the enabled queue at agent
+creation: `grok_search_mode` appears only when grok is enabled and `providers`
+is constrained to the enabled set, exactly like the Python operation.
 
 Codex Alpha ships disabled: besides its API key it also needs its gateway
 endpoint in the per-source endpoint field before it can serve.

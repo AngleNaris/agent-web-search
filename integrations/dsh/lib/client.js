@@ -99,19 +99,6 @@ window.__ModuleLoader__.load({
 			historyAttempts: "Upstream attempts",
 			fanoutShort: "Fanout",
 			fallbackShort: "Fallback",
-			timeRange: "Time range",
-			timeRangeDesc: "Only return results from the selected period; applies to every search.",
-			timeRangeAny: "Any time",
-			timeRangeDay: "Past day",
-			timeRangeWeek: "Past week",
-			timeRangeMonth: "Past month",
-			timeRangeYear: "Past year",
-			grokMode: "Grok mode",
-			grokModeDesc: "Which server-side search tool Grok exposes; only applies when grok is enabled.",
-			grokModeDefault: "Default (web search)",
-			grokModeWeb: "Web search",
-			grokModeX: "X search",
-			grokModeBoth: "Both",
 			policyIntro: "Adjust how enabled sources run and how their answers are merged.",
 			policyModeTitle: "Dispatch mode",
 			policyModeDesc: "Whether to query all upstreams concurrently or fall back in sequence.",
@@ -196,19 +183,6 @@ window.__ModuleLoader__.load({
 			historyAttempts: "上游尝试",
 			fanoutShort: "并发",
 			fallbackShort: "回退",
-			timeRange: "时间范围",
-			timeRangeDesc: "只返回所选时间段内的结果；对每次搜索生效。",
-			timeRangeAny: "不限时间",
-			timeRangeDay: "近一天",
-			timeRangeWeek: "近一周",
-			timeRangeMonth: "近一月",
-			timeRangeYear: "近一年",
-			grokMode: "Grok 模式",
-			grokModeDesc: "Grok 暴露的服务端搜索工具；仅 grok 启用时生效。",
-			grokModeDefault: "默认（网页搜索）",
-			grokModeWeb: "网页搜索",
-			grokModeX: "X 搜索",
-			grokModeBoth: "两者都用",
 			policyIntro: "调整已启用来源的调用方式及答案合并方式。",
 			policyModeTitle: "多上游调度模式",
 			policyModeDesc: "选择并发查询全部上游以获取丰富结果，或顺序容灾以节省额度。",
@@ -390,8 +364,6 @@ window.__ModuleLoader__.load({
 					totalTimeoutMs: this.field("totalTimeoutMs"),
 					dedupeByUrl: this.field("dedupeByUrl"),
 					includeAnswer: this.field("includeAnswer"),
-					timeRange: this.field("timeRange"),
-					grokMode: this.field("grokMode"),
 					queue: this.queue.map((entry) => ({
 						...entry,
 						draft: this.keyDrafts[entryKey(entry)] ?? "",
@@ -495,15 +467,13 @@ window.__ModuleLoader__.load({
 					return { ok: false };
 				}
 				if (name === "mode") return MODES.includes(trimmed) ? { ok: true, value: trimmed } : { ok: false };
-				if (name === "timeRange") return ["", "d", "w", "m", "y"].includes(trimmed) ? { ok: true, value: trimmed } : { ok: false };
-				if (name === "grokMode") return ["", "web_search", "x_search", "both"].includes(trimmed) ? { ok: true, value: trimmed } : { ok: false };
 				const parsed = Number(trimmed);
 				if (!Number.isInteger(parsed)) return { ok: false };
 				return { ok: true, value: parsed };
 			}
 
 			validity() {
-				for (const name of [...NUMERIC_FIELDS, ...BOOLEAN_FIELDS, "mode", "timeRange", "grokMode"]) {
+				for (const name of [...NUMERIC_FIELDS, ...BOOLEAN_FIELDS, "mode"]) {
 					if (!Object.hasOwn(this.edits, name)) continue;
 					if (!this.coerce(name).ok) return name;
 				}
@@ -1340,47 +1310,6 @@ window.__ModuleLoader__.load({
 							onEdit: text => props.edit("totalTimeoutMs", text),
 							onReset: () => props.resetField("totalTimeoutMs"),
 						}),
-						h("div", { style: styles.settingRow },
-							h("div", { style: styles.settingInfo },
-								h("label", { style: styles.settingLabel, htmlFor: "aws-timeRange" }, t("timeRange")),
-								h("div", { style: styles.settingDesc }, t("timeRangeDesc")),
-							),
-							h("div", { style: styles.settingControl },
-								h("select", {
-									id: "aws-timeRange",
-									style: { ...styles.select, width: "180px" },
-									value: state.timeRange.text || "",
-									disabled,
-									onChange: event => props.edit("timeRange", event.target.value),
-								},
-									h("option", { value: "" }, t("timeRangeAny")),
-									h("option", { value: "d" }, t("timeRangeDay")),
-									h("option", { value: "w" }, t("timeRangeWeek")),
-									h("option", { value: "m" }, t("timeRangeMonth")),
-									h("option", { value: "y" }, t("timeRangeYear")),
-								),
-							),
-						),
-						h("div", { style: styles.settingRow },
-							h("div", { style: styles.settingInfo },
-								h("label", { style: styles.settingLabel, htmlFor: "aws-grokMode" }, t("grokMode")),
-								h("div", { style: styles.settingDesc }, t("grokModeDesc")),
-							),
-							h("div", { style: styles.settingControl },
-								h("select", {
-									id: "aws-grokMode",
-									style: { ...styles.select, width: "180px" },
-									value: state.grokMode.text || "",
-									disabled,
-									onChange: event => props.edit("grokMode", event.target.value),
-								},
-									h("option", { value: "" }, t("grokModeDefault")),
-									h("option", { value: "web_search" }, t("grokModeWeb")),
-									h("option", { value: "x_search" }, t("grokModeX")),
-									h("option", { value: "both" }, t("grokModeBoth")),
-								),
-							),
-						),
 					),
 
 					// Card 3: Boolean options
