@@ -68,8 +68,8 @@ The existing **Settings → agent-web-search** page remains available. Its
 controls retain the following runtime behavior:
 
 - `fanout` and `fallback` execution modes;
-- provider enablement/order, max results, per-attempt timeout, total timeout,
-  URL de-duplication, and answer inclusion;
+- provider enablement/order, per-attempt timeout, total timeout, URL
+  de-duplication, and answer inclusion;
 - per-upstream model text for model-backed upstreams (DeepSeek, Gemini, Grok,
   ARK, Zhipu chat search, generic Messages/Responses, Codex Alpha):
   comma-separated model names, blank means the backend default;
