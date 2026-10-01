@@ -59,6 +59,7 @@ export class AgentWebSearchProvider {
         mode: config.mode,
         providers: entries,
         query: request?.query,
+        timeRange: config.timeRange,
         maxResults,
         attemptTimeoutMs: config.attemptTimeoutMs,
         totalTimeoutMs: config.totalTimeoutMs,

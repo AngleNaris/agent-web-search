@@ -30,6 +30,7 @@ import {
   MIN_TOTAL_TIMEOUT_MS,
   MODES,
   PROVIDER_KINDS,
+  TIME_RANGES,
 } from './defaults.js'
 
 /**
@@ -46,6 +47,10 @@ export const Config = z.object({
     kind: z.string(),
     enabled: z.boolean().default(true),
     baseURL: z.string(),
+    // Comma-separated model list for model-backed upstreams (deepseek, gemini,
+    // grok, ark, zhipu_chat_search, messages, responses, codex_alpha); blank
+    // means the backend default. Ignored for fixed-backend kinds.
+    models: z.string().default(''),
     id: z.string().default(''),
     toolName: z.string().default(''),
     inputTemplate: z.string().default('{"query":"{{query}}"}'),
@@ -61,20 +66,26 @@ export const Config = z.object({
   totalTimeoutMs: z.natural().min(MIN_TOTAL_TIMEOUT_MS).max(MAX_TOTAL_TIMEOUT_MS).default(DEFAULT_TOTAL_TIMEOUT_MS).volatile(),
   dedupeByUrl: z.boolean().default(true).volatile(),
   includeAnswer: z.boolean().default(true).volatile(),
+  // Default time filter applied to every search: '' means no filter.
+  // The model-facing tool takes no time_range argument, so this card value
+  // is the only source.
+  timeRange: z.union(TIME_RANGES).default('').volatile(),
 })
 
 /**
  * Normalize one queue entry: trim the endpoint override and drop it when empty.
  *
- * @param {{kind: string, enabled?: boolean, baseURL?: string}} entry - the schema-validated entry.
- * @returns {{kind: string, enabled: boolean, baseURL?: string}} the normalized entry.
+ * @param {{kind: string, enabled?: boolean, baseURL?: string, models?: string}} entry - the schema-validated entry.
+ * @returns {{kind: string, enabled: boolean, baseURL?: string, models?: string}} the normalized entry.
  */
 export function normalizeEntry(entry) {
   const baseURL = typeof entry.baseURL === 'string' ? entry.baseURL.trim() : ''
+  const models = typeof entry.models === 'string' ? entry.models.trim() : ''
   return {
     kind: entry.kind,
     enabled: entry.enabled !== false,
     ...(baseURL.length > 0 ? { baseURL } : {}),
+    ...(models.length > 0 ? { models } : {}),
   }
 }
 
@@ -95,9 +106,8 @@ export function resolveConfig(input = {}) {
   const providers = []
   for (const raw of resolved.providers.get()) {
     if (!PROVIDER_KINDS.includes(raw.kind)) continue
-    const identity = raw.kind === 'mcp' ? `mcp:${raw.id}` : raw.kind
-    if (seen.has(identity)) continue
-    seen.add(identity)
+    if (seen.has(raw.kind)) continue
+    seen.add(raw.kind)
     providers.push(normalizeEntry(raw))
   }
   return {
@@ -108,6 +118,7 @@ export function resolveConfig(input = {}) {
     totalTimeoutMs: resolved.totalTimeoutMs.get(),
     dedupeByUrl: resolved.dedupeByUrl.get(),
     includeAnswer: resolved.includeAnswer.get(),
+    timeRange: resolved.timeRange.get(),
   }
 }
 
@@ -129,6 +140,7 @@ export function snapshotsOf(config) {
     totalTimeoutMs: config.totalTimeoutMs.get(),
     dedupeByUrl: config.dedupeByUrl.get(),
     includeAnswer: config.includeAnswer.get(),
+    timeRange: config.timeRange.get(),
   }
 }
 

@@ -8,6 +8,7 @@ const MAX_RESULTS = 20
 const CREDENTIAL_ENV = {
   ark: 'ARK_API_KEY',
   brave: 'BRAVE_SEARCH_API_KEY',
+  codex_alpha: 'AGENT_WEB_SEARCH_CODEX_ALPHA_API_KEY',
   deepseek: 'DEEPSEEK_API_KEY',
   exa: 'EXA_API_KEY',
   gemini: 'GEMINI_API_KEY',
@@ -25,6 +26,7 @@ const CREDENTIAL_ENV = {
 const ENDPOINT_ENV = {
   ark: 'AGENT_WEB_SEARCH_ARK_ENDPOINT',
   brave: 'AGENT_WEB_SEARCH_BRAVE_ENDPOINT',
+  codex_alpha: 'AGENT_WEB_SEARCH_CODEX_ALPHA_ENDPOINT',
   ddgs: 'AGENT_WEB_SEARCH_DDGS_ENDPOINT',
   exa: 'EXA_MCP_URL',
   gemini: 'AGENT_WEB_SEARCH_GEMINI_ENDPOINT',
@@ -47,6 +49,20 @@ const EXTRA_ENDPOINT_ENV = [
   'AGENT_WEB_SEARCH_EXA_ENDPOINT',
   'AGENT_WEB_SEARCH_PARALLEL_MCP_URL',
 ]
+
+// The environment variable each model-backed kind reads its model list from.
+// Kinds absent here take no model setting. Values are comma-separated model
+// names, except `codex_alpha` which takes a single model.
+const MODEL_ENV = {
+  deepseek: 'AGENT_WEB_SEARCH_DEEPSEEK_MODELS',
+  gemini: 'AGENT_WEB_SEARCH_GEMINI_MODELS',
+  grok: 'AGENT_WEB_SEARCH_GROK_MODELS',
+  ark: 'AGENT_WEB_SEARCH_ARK_MODELS',
+  zhipu_chat_search: 'AGENT_WEB_SEARCH_ZHIPU_CHAT_MODELS',
+  messages: 'AGENT_WEB_SEARCH_MESSAGES_MODELS',
+  responses: 'AGENT_WEB_SEARCH_RESPONSES_MODELS',
+  codex_alpha: 'AGENT_WEB_SEARCH_CODEX_ALPHA_MODEL',
+}
 
 function endpointValue(raw) {
   if (typeof raw !== 'string' || raw.trim() === '') return undefined
@@ -295,7 +311,7 @@ export class PythonSearchBridge {
     this.lineMode = options.lineMode !== false
   }
 
-  async search({ query, maxResults, providers, entries, resolveValue, timeoutMs, signal }) {
+  async search({ query, maxResults, providers, entries, resolveValue, timeoutMs, signal, timeRange }) {
     if (!Array.isArray(providers) || providers.length === 0) {
       throw providerError('No Python search providers are configured', 'configuration')
     }
@@ -326,7 +342,10 @@ export class PythonSearchBridge {
       request.notify('notifications/initialized')
       const envelope = await request.call(2, 'tools/call', {
         name: 'web_search',
-        arguments: { query, max_results: maxResults, providers },
+        arguments: {
+          query, max_results: maxResults, providers,
+          ...(timeRange ? { time_range: timeRange } : {}),
+        },
       })
       return mapProviderPayload(parseToolEnvelope(envelope), maxResults)
     } catch (error) {
@@ -350,10 +369,15 @@ async function buildEnvironment({ baseEnv, entries, providers, resolveValue, sig
   env.AGENT_WEB_SEARCH_MCP_TRANSPORT = 'stdio'
   for (const [name, variable] of Object.entries(CREDENTIAL_ENV)) delete env[variable]
   for (const variable of Object.values(ENDPOINT_ENV)) delete env[variable]
+  for (const variable of Object.values(MODEL_ENV)) delete env[variable]
   for (const variable of Object.values(BASE_URL_ENV)) delete env[variable]
   for (const variable of EXTRA_ENDPOINT_ENV) delete env[variable]
   for (const entry of entries ?? []) {
     if (!providers.includes(entry.kind)) continue
+    const modelEnv = MODEL_ENV[entry.kind]
+    if (modelEnv && typeof entry.models === 'string' && entry.models.trim()) {
+      env[modelEnv] = entry.models.trim()
+    }
     const credentialEnv = CREDENTIAL_ENV[entry.kind]
     if (credentialEnv && entry.credentialRef && typeof resolveValue === 'function') {
       const value = await withAbort(signal, Promise.resolve(resolveValue(entry.credentialRef, signal)))
@@ -410,4 +434,4 @@ export function mergeBridgeOutcomes(outcomes, maxResults, dedupeByUrl = true) {
   return mergeOutcomes(outcomes, Math.max(1, Math.min(MAX_RESULTS, Math.floor(maxResults))), dedupeByUrl)
 }
 
-export { CREDENTIAL_ENV, ENDPOINT_ENV, BASE_URL_ENV, MAX_OUTPUT_BYTES, mapProviderPayload, parseToolEnvelope }
+export { CREDENTIAL_ENV, ENDPOINT_ENV, BASE_URL_ENV, MODEL_ENV, MAX_OUTPUT_BYTES, mapProviderPayload, parseToolEnvelope }

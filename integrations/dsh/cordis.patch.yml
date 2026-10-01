@@ -72,3 +72,5 @@
             enabled: false
           - kind: responses
             enabled: false
+          - kind: codex_alpha
+            enabled: false

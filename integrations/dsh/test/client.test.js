@@ -98,3 +98,24 @@ test('activity renders exactly one table row per search call with inline attempt
     assert.equal(all(rendered).find(node => node.props?.role === 'region').props.style.overflow, 'auto')
   } finally { React.useState = original }
 })
+
+test('model text is staged per upstream and saved only when non-blank', async () => {
+  const { injected, writes } = mounted()
+  injected.setModels('deepseek', 'deepseek-v4-flash')
+  injected.setEnabled('deepseek', true)
+  injected.setModels('exa', '   ')
+  injected.setEnabled('exa', true)
+  await injected.save()
+  const saved = writes.find(([field]) => field === 'providers')[1]
+  assert.equal(saved.find(item => item.kind === 'deepseek').models, 'deepseek-v4-flash')
+  assert.equal('models' in saved.find(item => item.kind === 'exa'), false)
+})
+
+test('time range edits validate and save as a plain value', async () => {
+  const { injected, writes } = mounted()
+  injected.edit('timeRange', 'w')
+  await injected.save()
+  assert.equal(writes.find(([field]) => field === 'timeRange')[1], 'w')
+  injected.edit('timeRange', 'nope')
+  assert.equal(injected.hooks.agentWebSearch.getSnapshot().invalid, 'timeRange')
+})

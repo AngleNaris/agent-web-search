@@ -36,9 +36,12 @@ export {
   DEFAULT_QUEUE,
   KIND_CREDENTIAL_REF,
   KIND_DEFAULT_BASE_URL,
+  KIND_DEFAULT_MODELS,
   KIND_LABEL,
+  MODEL_ENV,
   PACKAGE_NAME,
   PROVIDER_KINDS,
+  TIME_RANGES,
 } from './defaults.js'
 
 /** Cordis plugin name used by loader diagnostics. */

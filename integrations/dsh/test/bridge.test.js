@@ -153,3 +153,42 @@ test('bridge cancellation and timeout terminate the child process', async () => 
   await assert.rejects(timeout.search({ query: 'q', maxResults: 1, providers: ['ddgs'], entries: [{ kind: 'ddgs' }], resolveValue: async () => undefined, timeoutMs: 10 }), error => error.name === 'TimeoutError')
   assert.equal(timeoutState.child.killed, true)
 })
+
+test('bridge forwards per-source models and clears inherited model vars', async () => {
+  const state = {}
+  const calls = []
+  let childEnvironment
+  const bridge = new PythonSearchBridge({
+    command: 'fake-agent-web-search-mcp',
+    spawn: (command, args, options) => {
+      childEnvironment = options.env
+      return spawnFor(replyToCalls({ providers: { deepseek: { results: [{ title: 'A', url: 'https://example.org/a' }] } } }, calls), state)(command, args, options)
+    },
+    env: { PATH: '/bin', AGENT_WEB_SEARCH_DEEPSEEK_MODELS: 'stale-model', AGENT_WEB_SEARCH_GEMINI_MODELS: 'stale-model' }, lineMode: true,
+  })
+  const result = await bridge.search({
+    query: 'q', maxResults: 1, providers: ['deepseek'],
+    entries: [{ kind: 'deepseek', credentialRef: 'DEEPSEEK_API_KEY', models: 'deepseek-v4-flash, deepseek-v4-pro' }],
+    resolveValue: async () => undefined, timeoutMs: 1000,
+  })
+  assert.equal(childEnvironment.AGENT_WEB_SEARCH_DEEPSEEK_MODELS, 'deepseek-v4-flash, deepseek-v4-pro')
+  assert.equal(childEnvironment.AGENT_WEB_SEARCH_GEMINI_MODELS, undefined)
+  assert.equal(result.sources.length, 1)
+})
+
+test('bridge passes time_range to the MCP call only when configured', async () => {
+  for (const [timeRange, expected] of [['w', 'w'], [undefined, undefined], ['', undefined]]) {
+    const state = {}
+    const calls = []
+    const bridge = new PythonSearchBridge({
+      spawn: spawnFor(replyToCalls({ providers: { ddgs: { results: [{ title: 'A', url: 'https://example.org/a' }] } } }, calls), state),
+      env: {}, lineMode: true,
+    })
+    await bridge.search({
+      query: 'q', maxResults: 1, providers: ['ddgs'], entries: [{ kind: 'ddgs' }],
+      resolveValue: async () => undefined, timeoutMs: 1000, timeRange,
+    })
+    const params = calls.find(call => call.method === 'tools/call').params
+    assert.equal(params.arguments.time_range ?? undefined, expected)
+  }
+})

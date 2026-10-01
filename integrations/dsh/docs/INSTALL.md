@@ -72,6 +72,8 @@ agent-web-search-mcp --help
 - [ ] 内置 `web-search-deepseek` 已关闭（避免页面上挂着一个永远不被选中的 provider）。
 - [ ] `agent-web-search-mcp --help` 在 DSH 宿主环境里能运行。
 - [ ] 用 `web_search` 搜一次能返回带 `【来源：…】` 归因的结果。
+- [ ] 需要换模型的上游在来源展开面板里填了模型；需要时间过滤时在搜索策略
+      里选了时间范围；Codex Alpha 除了 Key 还填了网关地址。
 
 ## 排错
 

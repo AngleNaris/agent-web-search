@@ -55,10 +55,17 @@ controls retain the following runtime behavior:
 
 - `fanout` and `fallback` execution modes;
 - provider enablement/order, max results, per-attempt timeout, total timeout,
-  URL de-duplication, and answer inclusion;
+  URL de-duplication, answer inclusion, and a default time range
+  (`d`/`w`/`m`/`y`, blank means unfiltered);
+- per-upstream model text for model-backed upstreams (DeepSeek, Gemini, Grok,
+  ARK, Zhipu chat search, generic Messages/Responses, Codex Alpha):
+  comma-separated model names, blank means the backend default;
 - DSH credential references, which are resolved server-side and never persisted
   in the provider queue or sent to the model; and
 - bounded in-memory call history and authenticated diagnostics.
+
+Codex Alpha ships disabled: besides its API key it also needs its gateway
+endpoint in the per-source endpoint field before it can serve.
 
 Built-in provider credentials use the canonical Python environment names listed
 in the root README. DSH resolves the corresponding credential reference into

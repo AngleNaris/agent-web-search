@@ -18,7 +18,7 @@ function reasonFor(error) {
   return 'failed'
 }
 
-async function runOne({ entry, query, maxResults, attemptTimeoutMs, signal, resolveValue, bridge, adapters }) {
+async function runOne({ entry, query, maxResults, attemptTimeoutMs, signal, resolveValue, bridge, adapters, timeRange }) {
   const startedAt = Date.now()
   const attemptSignal = timeoutSignal(signal, attemptTimeoutMs)
   try {
@@ -34,7 +34,7 @@ async function runOne({ entry, query, maxResults, attemptTimeoutMs, signal, reso
     }
     const result = await bridge.search({
       query, maxResults, providers: [entry.kind], entries: [entry], resolveValue,
-      timeoutMs: attemptTimeoutMs, signal: attemptSignal,
+      timeoutMs: attemptTimeoutMs, signal: attemptSignal, timeRange,
     })
     return { result, elapsedMs: Date.now() - startedAt }
   } catch (error) {
@@ -55,7 +55,7 @@ function attemptKind(entry) {
 
 export async function runSearch({
   mode, providers, query, maxResults, attemptTimeoutMs, totalTimeoutMs, dedupeByUrl,
-  includeAnswer, signal, resolveValue, bridge, adapters, onAttempt, logger,
+  includeAnswer, timeRange, signal, resolveValue, bridge, adapters, onAttempt, logger,
 }) {
   const totalSignal = timeoutSignal(signal, totalTimeoutMs)
   const outcomes = []
@@ -96,7 +96,7 @@ export async function runSearch({
   const runEntry = async entry => {
     try {
       const { result, elapsedMs } = await runOne({
-        entry, query, maxResults, attemptTimeoutMs, signal: totalSignal, resolveValue, bridge, adapters,
+        entry, query, maxResults, attemptTimeoutMs, signal: totalSignal, resolveValue, bridge, adapters, timeRange,
       })
       return observeSuccess(entry, result, elapsedMs)
     } catch (error) {

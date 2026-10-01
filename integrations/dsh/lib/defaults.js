@@ -26,6 +26,7 @@ export const PROVIDER_KINDS = [
   'deepseek',
   'messages',
   'responses',
+  'codex_alpha',
 ]
 
 /** Human labels for the card's selects. */
@@ -45,6 +46,7 @@ export const KIND_LABEL = {
   deepseek: 'DeepSeek',
   messages: 'Anthropic Messages (generic)',
   responses: 'OpenAI Responses (generic)',
+  codex_alpha: 'Codex Alpha (experimental)',
 }
 
 /**
@@ -70,6 +72,7 @@ export const KIND_CREDENTIAL_REF = {
   deepseek: 'DEEPSEEK_API_KEY',
   messages: 'AGENT_WEB_SEARCH_MESSAGES_API_KEY',
   responses: 'AGENT_WEB_SEARCH_RESPONSES_API_KEY',
+  codex_alpha: 'AGENT_WEB_SEARCH_CODEX_ALPHA_API_KEY',
 }
 
 /** Kinds that run without any credential at all. */
@@ -92,7 +95,46 @@ export const KIND_DEFAULT_BASE_URL = {
   deepseek: 'https://api.deepseek.com',
   messages: 'https://api.anthropic.com',
   responses: 'https://api.openai.com/v1',
+  // Codex Alpha has no default endpoint: the gateway URL must be configured.
+  // This value is only the card's input placeholder, never a fallback.
+  codex_alpha: 'https://gateway.example/v1/alpha/search',
 }
+
+/**
+ * The environment variable each model-backed kind reads its model list from.
+ *
+ * Kinds absent here take no model setting: their backend is fixed. Values are
+ * comma-separated model names, except `codex_alpha` which takes a single
+ * model. Mirrors the Python providers' `*_MODELS` variables.
+ */
+export const MODEL_ENV = {
+  deepseek: 'AGENT_WEB_SEARCH_DEEPSEEK_MODELS',
+  gemini: 'AGENT_WEB_SEARCH_GEMINI_MODELS',
+  grok: 'AGENT_WEB_SEARCH_GROK_MODELS',
+  ark: 'AGENT_WEB_SEARCH_ARK_MODELS',
+  zhipu_chat_search: 'AGENT_WEB_SEARCH_ZHIPU_CHAT_MODELS',
+  messages: 'AGENT_WEB_SEARCH_MESSAGES_MODELS',
+  responses: 'AGENT_WEB_SEARCH_RESPONSES_MODELS',
+  codex_alpha: 'AGENT_WEB_SEARCH_CODEX_ALPHA_MODEL',
+}
+
+/**
+ * The models a fresh deployment uses when the card's model field is blank.
+ * Card input placeholders only; the Python backends own the real defaults.
+ */
+export const KIND_DEFAULT_MODELS = {
+  deepseek: 'deepseek-v4-flash',
+  gemini: 'gemini-3.7-flash',
+  grok: 'grok-4.6',
+  ark: 'glm-5-2-260617, doubao-seed-2-1-turbo-260628, deepseek-v4-flash-ga-260731',
+  zhipu_chat_search: 'glm-5.3-flash',
+  messages: 'claude-3-7-sonnet-20250219, claude-3-5-haiku-20241022',
+  responses: 'gpt-5-mini',
+  codex_alpha: 'gpt-5.6-luna',
+}
+
+/** Accepted `timeRange` values: '' means no time filter. */
+export const TIME_RANGES = ['', 'd', 'w', 'm', 'y']
 
 /**
  * The shipped default queue.
@@ -132,6 +174,7 @@ export const DEFAULT_QUEUE = [
   { kind: 'deepseek', enabled: false, baseURL: '' },
   { kind: 'messages', enabled: false, baseURL: '' },
   { kind: 'responses', enabled: false, baseURL: '' },
+  { kind: 'codex_alpha', enabled: false, baseURL: '' },
 ]
 
 /** Aggregation modes. */

@@ -10,10 +10,12 @@ window.__ModuleLoader__.load({
 		//#region constants (mirrored from lib/defaults.js — a client bundle must not
 		// value-import @deepseek-ai/* packages, and cannot reach the Host modules) */
 		const NS = "agent-web-search";
-		const PROVIDER_KINDS = ["exa", "parallel", "ddgs", "brave", "tavily", "perplexity", "you", "gemini", "grok", "ark", "zhipu_web_search", "zhipu_chat_search", "deepseek", "messages", "responses"];
-		const KIND_LABEL = { exa: "Exa", parallel: "Parallel", ddgs: "DuckDuckGo", brave: "Brave Search", tavily: "Tavily", perplexity: "Perplexity", you: "You.com", gemini: "Gemini (official API)", grok: "Grok", ark: "Volcengine ARK", zhipu_web_search: "Zhipu Web Search", zhipu_chat_search: "Zhipu Chat Search", deepseek: "DeepSeek", messages: "Anthropic Messages", responses: "OpenAI Responses" };
-		const KIND_CREDENTIAL_REF = { exa: "EXA_API_KEY", parallel: "PARALLEL_API_KEY", ddgs: null, brave: "BRAVE_SEARCH_API_KEY", tavily: "TAVILY_API_KEY", perplexity: "PERPLEXITY_API_KEY", you: "YDC_API_KEY", gemini: "GEMINI_API_KEY", grok: "XAI_API_KEY", ark: "ARK_API_KEY", zhipu_web_search: "ZHIPU_WEB_SEARCH_API_KEY", zhipu_chat_search: "ZHIPU_CHAT_SEARCH_API_KEY", deepseek: "DEEPSEEK_API_KEY", messages: "AGENT_WEB_SEARCH_MESSAGES_API_KEY", responses: "AGENT_WEB_SEARCH_RESPONSES_API_KEY" };
-		const KIND_DEFAULT_BASE_URL = { exa: "https://mcp.exa.ai/mcp", parallel: "https://search.parallel.ai/mcp", ddgs: "https://html.duckduckgo.com/html/", brave: "https://api.search.brave.com/res/v1/web/search", tavily: "https://api.tavily.com/search", perplexity: "https://api.perplexity.ai/search", you: "https://ydc-index.io/v1/search", gemini: "https://generativelanguage.googleapis.com/v1beta/interactions", grok: "https://api.x.ai/v1/responses", ark: "https://ark.cn-beijing.volces.com/api/v3/responses", zhipu_web_search: "https://open.bigmodel.cn", zhipu_chat_search: "https://open.bigmodel.cn", deepseek: "https://api.deepseek.com/anthropic", messages: "https://api.anthropic.com", responses: "https://api.openai.com/v1" };
+		const PROVIDER_KINDS = ["exa", "parallel", "ddgs", "brave", "tavily", "perplexity", "you", "gemini", "grok", "ark", "zhipu_web_search", "zhipu_chat_search", "deepseek", "messages", "responses", "codex_alpha"];
+		const KIND_LABEL = { exa: "Exa", parallel: "Parallel", ddgs: "DuckDuckGo", brave: "Brave Search", tavily: "Tavily", perplexity: "Perplexity", you: "You.com", gemini: "Gemini (official API)", grok: "Grok", ark: "Volcengine ARK", zhipu_web_search: "Zhipu Web Search", zhipu_chat_search: "Zhipu Chat Search", deepseek: "DeepSeek", messages: "Anthropic Messages", responses: "OpenAI Responses", codex_alpha: "Codex Alpha" };
+		const KIND_CREDENTIAL_REF = { exa: "EXA_API_KEY", parallel: "PARALLEL_API_KEY", ddgs: null, brave: "BRAVE_SEARCH_API_KEY", tavily: "TAVILY_API_KEY", perplexity: "PERPLEXITY_API_KEY", you: "YDC_API_KEY", gemini: "GEMINI_API_KEY", grok: "XAI_API_KEY", ark: "ARK_API_KEY", zhipu_web_search: "ZHIPU_WEB_SEARCH_API_KEY", zhipu_chat_search: "ZHIPU_CHAT_SEARCH_API_KEY", deepseek: "DEEPSEEK_API_KEY", messages: "AGENT_WEB_SEARCH_MESSAGES_API_KEY", responses: "AGENT_WEB_SEARCH_RESPONSES_API_KEY", codex_alpha: "AGENT_WEB_SEARCH_CODEX_ALPHA_API_KEY" };
+		const KIND_DEFAULT_BASE_URL = { exa: "https://mcp.exa.ai/mcp", parallel: "https://search.parallel.ai/mcp", ddgs: "https://html.duckduckgo.com/html/", brave: "https://api.search.brave.com/res/v1/web/search", tavily: "https://api.tavily.com/search", perplexity: "https://api.perplexity.ai/search", you: "https://ydc-index.io/v1/search", gemini: "https://generativelanguage.googleapis.com/v1beta/interactions", grok: "https://api.x.ai/v1/responses", ark: "https://ark.cn-beijing.volces.com/api/v3/responses", zhipu_web_search: "https://open.bigmodel.cn", zhipu_chat_search: "https://open.bigmodel.cn", deepseek: "https://api.deepseek.com/anthropic", messages: "https://api.anthropic.com", responses: "https://api.openai.com/v1", codex_alpha: "https://gateway.example/v1/alpha/search" };
+		const MODEL_ENV = { deepseek: "AGENT_WEB_SEARCH_DEEPSEEK_MODELS", gemini: "AGENT_WEB_SEARCH_GEMINI_MODELS", grok: "AGENT_WEB_SEARCH_GROK_MODELS", ark: "AGENT_WEB_SEARCH_ARK_MODELS", zhipu_chat_search: "AGENT_WEB_SEARCH_ZHIPU_CHAT_MODELS", messages: "AGENT_WEB_SEARCH_MESSAGES_MODELS", responses: "AGENT_WEB_SEARCH_RESPONSES_MODELS", codex_alpha: "AGENT_WEB_SEARCH_CODEX_ALPHA_MODEL" };
+		const KIND_DEFAULT_MODELS = { deepseek: "deepseek-v4-flash", gemini: "gemini-3.7-flash", grok: "grok-4.6", ark: "glm-5-2-260617, doubao-seed-2-1-turbo-260628, deepseek-v4-flash-ga-260731", zhipu_chat_search: "glm-5.3-flash", messages: "claude-3-7-sonnet-20250219, claude-3-5-haiku-20241022", responses: "gpt-5-mini", codex_alpha: "gpt-5.6-luna" };
 		const ANONYMOUS_KINDS = ["exa", "parallel", "ddgs"];
 		const MODES = ["fanout", "fallback"];
 		const NUMERIC_FIELDS = ["maxResults", "attemptTimeoutMs", "totalTimeoutMs"];
@@ -81,6 +83,8 @@ window.__ModuleLoader__.load({
 			configure: "Configure",
 			collapse: "Collapse",
 			endpointHint: "Leave blank for the provider's default endpoint.",
+			model: "Model",
+			modelHint: "Comma-separated model names for this upstream; blank uses the backend default.",
 			historyTime: "Time",
 			historyState: "Status",
 			historyMode: "Mode",
@@ -88,6 +92,13 @@ window.__ModuleLoader__.load({
 			historyAttempts: "Upstream attempts",
 			fanoutShort: "Fanout",
 			fallbackShort: "Fallback",
+			timeRange: "Time range",
+			timeRangeDesc: "Only return results from the selected period; applies to every search.",
+			timeRangeAny: "Any time",
+			timeRangeDay: "Past day",
+			timeRangeWeek: "Past week",
+			timeRangeMonth: "Past month",
+			timeRangeYear: "Past year",
 			policyIntro: "Adjust how enabled sources run and how their answers are merged.",
 			policyModeTitle: "Dispatch mode",
 			policyModeDesc: "Whether to query all upstreams concurrently or fall back in sequence.",
@@ -159,6 +170,8 @@ window.__ModuleLoader__.load({
 			configure: "配置",
 			collapse: "收起",
 			endpointHint: "留空则使用该来源的默认接口地址。",
+			model: "模型",
+			modelHint: "该上游的模型名，多个用逗号分隔；留空使用后端默认模型。",
 			historyTime: "时间",
 			historyState: "状态",
 			historyMode: "模式",
@@ -166,6 +179,13 @@ window.__ModuleLoader__.load({
 			historyAttempts: "上游尝试",
 			fanoutShort: "并发",
 			fallbackShort: "回退",
+			timeRange: "时间范围",
+			timeRangeDesc: "只返回所选时间段内的结果；对每次搜索生效。",
+			timeRangeAny: "不限时间",
+			timeRangeDay: "近一天",
+			timeRangeWeek: "近一周",
+			timeRangeMonth: "近一月",
+			timeRangeYear: "近一年",
 			policyIntro: "调整已启用来源的调用方式及答案合并方式。",
 			policyModeTitle: "多上游调度模式",
 			policyModeDesc: "选择并发查询全部上游以获取丰富结果，或顺序容灾以节省额度。",
@@ -283,10 +303,10 @@ window.__ModuleLoader__.load({
 				const seen = new Map();
 				for (const entry of Array.isArray(value.providers) ? value.providers : []) {
 					if (PROVIDER_KINDS.includes(entry?.kind) && !seen.has(entry.kind)) {
-						seen.set(entry.kind, { kind: entry.kind, enabled: entry.enabled !== false, baseURL: typeof entry.baseURL === "string" ? entry.baseURL : "" });
+						seen.set(entry.kind, { kind: entry.kind, enabled: entry.enabled !== false, baseURL: typeof entry.baseURL === "string" ? entry.baseURL : "", models: typeof entry.models === "string" ? entry.models : "" });
 					}
 				}
-				this.queue = PROVIDER_KINDS.map((kind) => seen.get(kind) ?? { kind, enabled: false, baseURL: "" });
+				this.queue = PROVIDER_KINDS.map((kind) => seen.get(kind) ?? { kind, enabled: false, baseURL: "", models: "" });
 				this.queueDirty = false;
 				this.edits = {};
 				this.keyDrafts = {};
@@ -347,6 +367,7 @@ window.__ModuleLoader__.load({
 					totalTimeoutMs: this.field("totalTimeoutMs"),
 					dedupeByUrl: this.field("dedupeByUrl"),
 					includeAnswer: this.field("includeAnswer"),
+					timeRange: this.field("timeRange"),
 					queue: this.queue.map((entry) => ({
 						...entry,
 						draft: this.keyDrafts[entryKey(entry)] ?? "",
@@ -402,6 +423,15 @@ window.__ModuleLoader__.load({
 				this.publish();
 			}
 
+			setModels(kind, text) {
+				const entry = this.queue.find((row) => entryKey(row) === kind);
+				if (entry === undefined) return;
+				entry.models = text;
+				this.queueDirty = true;
+				this.failed = false;
+				this.publish();
+			}
+
 			setKeyDraft(kind, text) {
 				this.keyDrafts[kind] = text;
 				this.failed = false;
@@ -423,13 +453,14 @@ window.__ModuleLoader__.load({
 					return { ok: false };
 				}
 				if (name === "mode") return MODES.includes(trimmed) ? { ok: true, value: trimmed } : { ok: false };
+				if (name === "timeRange") return ["", "d", "w", "m", "y"].includes(trimmed) ? { ok: true, value: trimmed } : { ok: false };
 				const parsed = Number(trimmed);
 				if (!Number.isInteger(parsed)) return { ok: false };
 				return { ok: true, value: parsed };
 			}
 
 			validity() {
-				for (const name of [...NUMERIC_FIELDS, ...BOOLEAN_FIELDS, "mode"]) {
+				for (const name of [...NUMERIC_FIELDS, ...BOOLEAN_FIELDS, "mode", "timeRange"]) {
 					if (!Object.hasOwn(this.edits, name)) continue;
 					if (!this.coerce(name).ok) return name;
 				}
@@ -499,6 +530,7 @@ window.__ModuleLoader__.load({
 							kind: entry.kind,
 							enabled: entry.enabled,
 							baseURL: entry.baseURL.trim(),
+							...(typeof entry.models === "string" && entry.models.trim().length > 0 ? { models: entry.models.trim() } : {}),
 						}));
 					if (!await this.writeSetting(() => this.scope.set("providers", payload))) landed = false;
 				}
@@ -543,6 +575,7 @@ window.__ModuleLoader__.load({
 					setEnabled: (kind, enabled) => this.setEnabled(kind, enabled),
 					setBaseURL: (kind, text) => this.setBaseURL(kind, text),
 					setKeyDraft: (kind, text) => this.setKeyDraft(kind, text),
+					setModels: (kind, text) => this.setModels(kind, text),
 				};
 			}
 
@@ -1027,6 +1060,19 @@ window.__ModuleLoader__.load({
 						}),
 					),
 					h("p", { style: { ...styles.hint, margin: "2px 0 4px" } }, t("endpointHint")),
+					MODEL_ENV[entry.kind] ? h("label", { style: { display: "block", marginTop: "4px" } },
+						h("span", { style: styles.label }, t("model")),
+						h("input", {
+							type: "text",
+							style: { ...styles.input, width: "100%", display: "block", marginTop: "4px" },
+							placeholder: KIND_DEFAULT_MODELS[entry.kind] ?? "",
+							value: entry.models ?? "",
+							disabled,
+							spellCheck: false,
+							onChange: event => props.onModels(event.target.value),
+						}),
+						h("p", { style: { ...styles.hint, margin: "2px 0 4px" } }, t("modelHint")),
+					) : null,
 					ref === null ? null : h("label", { style: { display: "block" } },
 						h("span", { style: styles.label }, t("key")),
 						h("div", { style: { marginTop: "4px" } },
@@ -1151,7 +1197,7 @@ window.__ModuleLoader__.load({
 						),
 						state.queue.map(entry => h(UpstreamRow, {
 							key: entry.kind, t, entry, availability: state.availability, disabled,
-							onToggle: enabled => props.setEnabled(entry.kind, enabled), onBaseURL: text => props.setBaseURL(entry.kind, text), onKey: text => props.setKeyDraft(entry.kind, text)
+							onToggle: enabled => props.setEnabled(entry.kind, enabled), onBaseURL: text => props.setBaseURL(entry.kind, text), onModels: text => props.setModels(entry.kind, text), onKey: text => props.setKeyDraft(entry.kind, text)
 						})),
 						h("div", { style: styles.modeNotice }, t("upstreamsHint")),
 					),
@@ -1221,6 +1267,27 @@ window.__ModuleLoader__.load({
 							onEdit: text => props.edit("totalTimeoutMs", text),
 							onReset: () => props.resetField("totalTimeoutMs"),
 						}),
+						h("div", { style: styles.settingRow },
+							h("div", { style: styles.settingInfo },
+								h("label", { style: styles.settingLabel, htmlFor: "aws-timeRange" }, t("timeRange")),
+								h("div", { style: styles.settingDesc }, t("timeRangeDesc")),
+							),
+							h("div", { style: styles.settingControl },
+								h("select", {
+									id: "aws-timeRange",
+									style: { ...styles.select, width: "180px" },
+									value: state.timeRange.text || "",
+									disabled,
+									onChange: event => props.edit("timeRange", event.target.value),
+								},
+									h("option", { value: "" }, t("timeRangeAny")),
+									h("option", { value: "d" }, t("timeRangeDay")),
+									h("option", { value: "w" }, t("timeRangeWeek")),
+									h("option", { value: "m" }, t("timeRangeMonth")),
+									h("option", { value: "y" }, t("timeRangeYear")),
+								),
+							),
+						),
 					),
 
 					// Card 3: Boolean options
