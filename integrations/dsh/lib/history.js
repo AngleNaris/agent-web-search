@@ -6,7 +6,7 @@ const LIMIT = 50
 // Keep the allowlist tied to the adapter registry's supported kinds so a new
 // source cannot silently disappear from diagnostics while still being queried.
 const KINDS = new Set(PROVIDER_KINDS)
-const STATUSES = new Set(['success', 'empty', 'failed', 'timeout', 'cancelled', 'skipped'])
+const STATUSES = new Set(['success', 'empty', 'failed', 'timeout', 'cancelled'])
 const integer = value => Number.isFinite(value) ? Math.max(0, Math.floor(value)) : 0
 
 export class SearchHistory {

@@ -19,6 +19,7 @@
 import { defineTool } from '@deepseek-ai/dsh-tools'
 import { isSafeSourceUrl } from './bridge.js'
 import { resolveConfig, snapshotsOf } from './config.js'
+import { ALL_SOURCES_FAILED_MESSAGE } from './provider.js'
 import { KIND_LABEL, PROVIDER_KINDS } from './defaults.js'
 
 const MAX_QUERY_LENGTH = 4000
@@ -120,6 +121,9 @@ function presentationMeta(args, value, settings = {}) {
   const seen = new Set()
   const answers = []
   const dedupeByUrl = settings.dedupeByUrl !== false
+  // A structured all-providers-failed envelope carries no providers at all;
+  // flag it so the presenter can decline to draw an empty result card.
+  const failed = isObjectLike(value?.error)
   for (const [provider, response] of Object.entries(value.providers ?? {})) {
     const label = KIND_LABEL[provider] ?? provider
     if (settings.includeAnswer !== false && response?.answer) answers.push(response.answer)
@@ -141,8 +145,13 @@ function presentationMeta(args, value, settings = {}) {
   return {
     sources,
     truncated: false,
+    ...(failed ? { failed: true } : {}),
     ...(answers.length > 0 ? { answer: answers.join('\n\n---\n\n') } : {}),
   }
+}
+
+function isObjectLike(value) {
+  return typeof value === 'object' && value !== null && !Array.isArray(value)
 }
 
 function normalizedSourceKey(url) {
@@ -309,9 +318,14 @@ export function registerWebSearchTool(ctx, { config, provider, force = false }) 
         // JSON-visible. Preserve the same payload for the native model tool;
         // cancellation, timeout, and malformed transport errors remain DSH
         // execution errors rather than being misreported as provider failure.
+        //
+        // `searchCode` is the signal this plugin sets, but DSH may re-throw a
+        // WebError through a wrapper that keeps only `cause` or only the message,
+        // so all three forms are accepted deliberately rather than defensively
+        // by accident. Keep them in step with provider.js's failure mapping.
         const isAllProvidersFailed = error?.searchCode === 'all_providers_failed'
           || error?.cause?.code === 'all_providers_failed'
-          || (error?.code === 'WEB_PROVIDER_ERROR' && error?.message === 'agent-web-search: all configured sources failed')
+          || (error?.code === 'WEB_PROVIDER_ERROR' && error?.message === ALL_SOURCES_FAILED_MESSAGE)
         if (isAllProvidersFailed) {
           return {
             error: {
@@ -335,8 +349,12 @@ export function registerWebSearchTool(ctx, { config, provider, force = false }) 
       if (result.isError) return undefined
       const meta = result.meta
       if (typeof meta !== 'object' || meta === null || Array.isArray(meta)) return undefined
-      const { sources, truncated, answer } = meta
+      const { sources, truncated, answer, failed } = meta
       if (!Array.isArray(sources) || typeof truncated !== 'boolean') return undefined
+      // An all-providers-failed call returns a structured error envelope as a
+      // successful value, so `isError` is false here; drawing an empty web card
+      // for it would tell the user a search succeeded with nothing in it.
+      if (failed === true) return undefined
       return {
         card: 'web',
         kind: 'search',

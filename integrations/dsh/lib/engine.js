@@ -11,7 +11,6 @@ function isCallerAbort(error, signal) {
 }
 
 function reasonFor(error) {
-  if (error?.code === 'skipped') return 'skipped'
   if (error?.code === 'timeout' || error?.name === 'TimeoutError') return 'timeout'
   if (error?.code === 'all_providers_failed') return 'all providers failed'
   if (error?.code === 'malformed_result') return 'malformed MCP result'
@@ -19,20 +18,10 @@ function reasonFor(error) {
   return 'failed'
 }
 
-async function runOne({ entry, query, maxResults, attemptTimeoutMs, signal, resolveValue, bridge, adapters, timeRange, grokMode }) {
+async function runOne({ entry, query, maxResults, attemptTimeoutMs, signal, resolveValue, bridge, timeRange, grokMode }) {
   const startedAt = Date.now()
   const attemptSignal = timeoutSignal(signal, attemptTimeoutMs)
   try {
-    const adapter = adapters?.get(entry.kind)
-    if (adapter) {
-      if (adapter.anonymousOk === false && !(await resolveValue(adapter.credentialRef, attemptSignal))) {
-        const error = new Error('provider credential is not configured')
-        error.code = 'skipped'
-        throw error
-      }
-      const result = await adapter.search({ entry, query, maxResults, signal: attemptSignal })
-      return { result: { query, ...result }, elapsedMs: Date.now() - startedAt }
-    }
     const result = await bridge.search({
       query, maxResults, providers: [entry.kind], entries: [entry], resolveValue,
       timeoutMs: attemptTimeoutMs, signal: attemptSignal, timeRange, grokMode,
@@ -46,35 +35,8 @@ async function runOne({ entry, query, maxResults, attemptTimeoutMs, signal, reso
   }
 }
 
-function entryLabel(entry) {
-  return entry.kind
-}
-
-function attemptKind(entry) {
-  return entry.kind
-}
-
 function isObject(value) {
   return value !== null && typeof value === 'object' && !Array.isArray(value)
-}
-
-function coreProviderFromLegacy(result) {
-  const rows = Array.isArray(result?.sources) ? result.sources : (Array.isArray(result?.results) ? result.results : [])
-  return {
-    ...(typeof result?.content === 'string' && result.content.length > 0 ? { answer: result.content } :
-      typeof result?.answer === 'string' && result.answer.length > 0 ? { answer: result.answer } : {}),
-    results: rows.map(source => ({
-      title: typeof source?.title === 'string' ? source.title : '',
-      url: typeof source?.url === 'string' ? source.url : '',
-      description: typeof source?.description === 'string'
-        ? source.description
-        : typeof source?.snippet === 'string' ? source.snippet : '',
-      ...(typeof source?.published_at === 'string'
-        ? { published_at: source.published_at }
-        : typeof source?.publishedAt === 'string' ? { published_at: source.publishedAt } : {}),
-      ...(typeof source?.author === 'string' ? { author: source.author } : {}),
-    })),
-  }
 }
 
 function sourceFromCore(entry, row) {
@@ -98,9 +60,12 @@ function failureDetails(item) {
 }
 
 function normalizeOutcome(entry, result, includeAnswer) {
+  // The bridge validates the child's payload, so the expected provider is always
+  // present here; anything else is treated as an empty response rather than
+  // reintroducing a second legacy normalization path.
   const rawProvider = isObject(result?.providers) && isObject(result.providers[entry.kind])
     ? result.providers[entry.kind]
-    : coreProviderFromLegacy(result)
+    : { results: [] }
   const rows = Array.isArray(rawProvider.results) ? rawProvider.results : []
   const results = rows.filter(row => isSafeSourceUrl(row?.url)).map(row => ({
     title: row.title,
@@ -125,7 +90,7 @@ function normalizeOutcome(entry, result, includeAnswer) {
 
 export async function runSearch({
   mode, providers, query, maxResults, attemptTimeoutMs, totalTimeoutMs, dedupeByUrl,
-  includeAnswer, timeRange, grokMode, signal, resolveValue, bridge, adapters, onAttempt, logger,
+  includeAnswer, timeRange, grokMode, signal, resolveValue, bridge, onAttempt, logger,
 }) {
   const totalSignal = timeoutSignal(signal, totalTimeoutMs)
   const outcomes = []
@@ -133,13 +98,12 @@ export async function runSearch({
 
   const observeFailure = (entry, error) => {
     const event = {
-      kind: attemptKind(entry),
-      ...(entry.kind === 'mcp' ? { sourceId: entry.id } : {}),
+      kind: entry.kind,
       status: reasonFor(error),
       durationMs: error?.elapsedMs ?? 0, resultCount: 0,
       ...(error?.status ? { httpStatus: error.status } : {}),
     }
-    failures.push({ kind: entryLabel(entry), reason: event.status, providerErrors: error?.providerErrors })
+    failures.push({ kind: entry.kind, reason: event.status, providerErrors: error?.providerErrors })
     onAttempt?.(event)
     logger?.warn?.('agent-web-search: %s failed: %s', event.kind, event.status)
   }
@@ -149,13 +113,12 @@ export async function runSearch({
     outcomes.push({ kind: entry.kind, ...result })
     const status = result.sources.length > 0 || (includeAnswer && result.content) ? 'success' : 'empty'
     onAttempt?.({
-      kind: attemptKind(entry),
-      ...(entry.kind === 'mcp' ? { sourceId: entry.id } : {}),
+      kind: entry.kind,
       status,
       durationMs: elapsedMs,
       resultCount: result.sources.length,
     })
-    logger?.info?.('agent-web-search: %s served the query in %d ms (%d rows)', entryLabel(entry), elapsedMs, result.sources.length)
+    logger?.info?.('agent-web-search: %s served the query in %d ms (%d rows)', entry.kind, elapsedMs, result.sources.length)
     // An empty but valid provider response is still a successful provider in
     // the core contract and must remain under `providers`.
     return true
@@ -164,7 +127,7 @@ export async function runSearch({
   const runEntry = async entry => {
     try {
       const { result, elapsedMs } = await runOne({
-        entry, query, maxResults, attemptTimeoutMs, signal: totalSignal, resolveValue, bridge, adapters, timeRange, grokMode,
+        entry, query, maxResults, attemptTimeoutMs, signal: totalSignal, resolveValue, bridge, timeRange, grokMode,
       })
       return observeSuccess(entry, result, elapsedMs)
     } catch (error) {

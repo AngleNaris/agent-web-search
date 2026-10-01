@@ -142,13 +142,3 @@ export function snapshotsOf(config) {
     includeAnswer: config.includeAnswer.get(),
   }
 }
-
-export {
-  DEFAULT_ATTEMPT_TIMEOUT_MS,
-  DEFAULT_QUEUE,
-  DEFAULT_TOTAL_TIMEOUT_MS,
-  MAX_ATTEMPT_TIMEOUT_MS,
-  MAX_TOTAL_TIMEOUT_MS,
-  MIN_ATTEMPT_TIMEOUT_MS,
-  MIN_TOTAL_TIMEOUT_MS,
-}

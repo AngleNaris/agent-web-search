@@ -1,5 +1,7 @@
 import { spawn as defaultSpawn } from 'node:child_process'
 
+import { ENDPOINT_OVERRIDE_KINDS, PACKAGE_NAME, PACKAGE_VERSION } from './defaults.js'
+
 const DEFAULT_COMMAND = 'agent-web-search-mcp'
 const DEFAULT_PROTOCOL_VERSION = '2025-06-18'
 const MAX_OUTPUT_BYTES = 1024 * 1024
@@ -22,6 +24,10 @@ const CREDENTIAL_ENV = {
   zhipu_chat_search: 'ZHIPU_CHAT_SEARCH_API_KEY',
 }
 
+// Every endpoint variable a DSH deployment may have exported, so an inherited
+// value can be cleared before the child starts. Assignment is limited to
+// ENDPOINT_OVERRIDE_KINDS: `ddgs` appears here only to be cleared, because its
+// Python provider reads no endpoint variable at all.
 const ENDPOINT_ENV = {
   ark: 'AGENT_WEB_SEARCH_ARK_ENDPOINT',
   brave: 'AGENT_WEB_SEARCH_BRAVE_ENDPOINT',
@@ -252,7 +258,10 @@ class StdioRpc {
     this.signal = signal
     this.maxBytes = maxBytes
     this.lineMode = lineMode
-    this.buffer = ''
+    // Raw bytes, never a decoded string: a multi-byte UTF-8 sequence can be
+    // split across two `data` chunks, and decoding each chunk on its own would
+    // turn both halves into U+FFFD. Frames are decoded only once complete.
+    this.buffer = Buffer.alloc(0)
     this.bytes = 0
     this.pending = new Map()
     this.closed = false
@@ -273,31 +282,34 @@ class StdioRpc {
 
   #data(chunk) {
     if (this.closed) return
-    this.bytes += Buffer.byteLength(chunk)
+    const bytes = Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk)
+    this.bytes += bytes.length
     if (this.bytes > this.maxBytes) return this.#fail(providerError('MCP output exceeds 1 MiB', 'output_limit'))
-    this.buffer += chunk.toString()
+    this.buffer = this.buffer.length === 0 ? bytes : Buffer.concat([this.buffer, bytes])
     while (true) {
       let text
       if (this.lineMode) {
-        const newline = this.buffer.indexOf('\n')
+        const newline = this.buffer.indexOf(0x0a)
         if (newline < 0) return
-        text = this.buffer.slice(0, newline).trim()
-        this.buffer = this.buffer.slice(newline + 1)
+        // Decode the whole frame at once; headers and JSON are ASCII-framed, so
+        // the byte offset of `\n` is exact.
+        text = this.buffer.subarray(0, newline).toString('utf8').trim()
+        this.buffer = this.buffer.subarray(newline + 1)
         if (!text) continue
       } else {
         const separator = this.buffer.indexOf('\r\n\r\n')
-        const alternate = this.buffer.indexOf('\n\n')
+        const alternate = separator >= 0 ? -1 : this.buffer.indexOf('\n\n')
         const headerEnd = separator >= 0 ? separator : alternate
         if (headerEnd < 0) return
-        const header = this.buffer.slice(0, headerEnd)
+        const terminator = separator >= 0 ? 4 : 2
+        const header = this.buffer.subarray(0, headerEnd).toString('latin1')
         const match = header.match(/(?:^|\r?\n)content-length:\s*(\d+)\s*$/im)
         if (!match) return this.#fail(providerError('MCP process returned malformed headers', 'malformed_result'))
-        const bodyStart = headerEnd + (separator >= 0 ? 4 : 2)
+        const bodyStart = headerEnd + terminator
         const length = Number(match[1])
-        const body = Buffer.from(this.buffer.slice(bodyStart))
-        if (body.byteLength < length) return
-        text = body.subarray(0, length).toString()
-        this.buffer = body.subarray(length).toString()
+        if (this.buffer.length - bodyStart < length) return
+        text = this.buffer.subarray(bodyStart, bodyStart + length).toString('utf8')
+        this.buffer = this.buffer.subarray(bodyStart + length)
       }
       let message
       try { message = JSON.parse(text) } catch { return this.#fail(providerError('MCP process returned malformed JSON', 'malformed_result')) }
@@ -378,7 +390,7 @@ export class PythonSearchBridge {
       const initialized = await request.call(1, 'initialize', {
         protocolVersion: DEFAULT_PROTOCOL_VERSION,
         capabilities: {},
-        clientInfo: { name: 'dsh-agent-web-search', version: '0.5.0' },
+        clientInfo: { name: PACKAGE_NAME, version: PACKAGE_VERSION },
       })
       if (initialized.error) throw providerError('MCP initialization failed', 'protocol_error')
       request.notify('notifications/initialized')
@@ -441,7 +453,9 @@ async function buildEnvironment({ baseEnv, entries, providers, resolveValue, sig
       const value = await withAbort(signal, Promise.resolve(resolveValue(entry.credentialRef, signal)))
       if (typeof value === 'string' && value.trim()) env[credentialEnv] = value
     }
-    if (entry.baseURL) {
+    // Only kinds whose Python provider actually reads an endpoint variable get
+    // one; for the rest this would write an environment variable nothing reads.
+    if (entry.baseURL && ENDPOINT_OVERRIDE_KINDS.includes(entry.kind)) {
       const endpoint = endpointValue(entry.baseURL)
       const variable = BASE_URL_ENV[entry.kind] ?? ENDPOINT_ENV[entry.kind]
       if (variable) env[variable] = endpoint
@@ -495,4 +509,4 @@ export function mergeBridgeOutcomes(outcomes, dedupeByUrl = true) {
   return mergeOutcomes(outcomes, dedupeByUrl)
 }
 
-export { CREDENTIAL_ENV, ENDPOINT_ENV, BASE_URL_ENV, MODEL_ENV, MAX_OUTPUT_BYTES, mapProviderPayload, parseToolEnvelope }
+export { mapProviderPayload, parseToolEnvelope }

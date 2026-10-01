@@ -1,10 +1,11 @@
 /**
  * Shared constants for `dsh-agent-web-search`.
  *
- * BOTH halves of the package read this module: the Host side (config, engine)
- * and the browser card. A client bundle must NOT value-import
- * `@deepseek-ai/*` packages, so every constant the two halves share lives here
- * in a zero-import module instead of being mirrored in two places.
+ * The Host side (config, engine, tool) reads this module directly. The browser
+ * card (`client.js`) is loaded by the client module loader and cannot reach a
+ * Host module, so it carries a hand-mirrored copy of these tables behind a
+ * "mirrored from lib/defaults.js" comment. Keep the two in step: when a kind is
+ * added, renamed, or relabelled here, update the mirror too.
  *
  * @module dsh-agent-web-search/defaults
  */
@@ -78,11 +79,20 @@ export const KIND_CREDENTIAL_REF = {
 /** Kinds that run without any credential at all. */
 export const ANONYMOUS_KINDS = ['exa', 'parallel', 'ddgs']
 
+/**
+ * Kinds whose Python provider honours a per-source endpoint override.
+ *
+ * `ddgs` is deliberately absent: it drives the `ddgs` library directly and reads
+ * no endpoint variable, so offering the card an endpoint field for it would only
+ * collect a value nothing can apply. Keep this aligned with the variables the
+ * bridge maps and with what each provider in `agent_web_search/providers` reads.
+ */
+export const ENDPOINT_OVERRIDE_KINDS = PROVIDER_KINDS.filter(kind => kind !== 'ddgs')
+
 /** Default upstream endpoints, also used as the card's input placeholders. */
 export const KIND_DEFAULT_BASE_URL = {
   exa: 'https://mcp.exa.ai/mcp',
   parallel: 'https://search.parallel.ai/mcp',
-  ddgs: 'https://html.duckduckgo.com/html/',
   brave: 'https://api.search.brave.com/res/v1/web/search',
   tavily: 'https://api.tavily.com/search',
   perplexity: 'https://api.perplexity.ai/search',
@@ -135,21 +145,15 @@ export const KIND_DEFAULT_MODELS = {
 
 
 /**
- * The shipped default queue.
- *
- * The three anonymous kinds sit first purely so a fresh install serves
- * searches with zero configuration; after that, order only matters in
- * `fallback` mode, where the engine stops at the first success.
- */
-/**
  * The shipped queue.
  *
  * Only the three keyless upstreams ship ENABLED. Everything else is present but
  * off, and that asymmetry is deliberate: an enabled upstream with no key fails
  * its attempt on every search, so a queue that ships them on makes "enabled"
- * mean "will probably fail" and the Settings page would advertise ten rows as on
- * while none of them can serve. Turning one on is one click once its credential
- * is set — the card keeps every kind listed even when the section omits it.
+ * mean "will probably fail" and the Settings page would advertise sixteen rows
+ * as on while none of them can serve. Turning one on is one click once its
+ * credential is set — the card keeps every kind listed even when the section
+ * omits it.
  *
  * `messages` and `responses` ship off even for a keyed deployment: both call a
  * general-purpose chat/response model to answer a search, which is a different
@@ -196,3 +200,12 @@ export const AGENT_WEB_SEARCH_NAMESPACE = 'agent-web-search'
 
 /** The package name, spelled here so both halves stay self-contained. */
 export const PACKAGE_NAME = 'dsh-agent-web-search'
+
+/**
+ * The version reported to the Python child as the MCP client version.
+ *
+ * Kept here so it is not an unexplained literal deep in the bridge. It must match
+ * `version` in both `package.json` files; `defaults.test.js` asserts that, so a
+ * version bump fails a test instead of silently drifting.
+ */
+export const PACKAGE_VERSION = '0.5.0'

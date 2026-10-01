@@ -3,11 +3,36 @@ import assert from 'node:assert/strict'
 import { SearchHistory } from '../lib/history.js'
 import { runSearch } from '../lib/engine.js'
 import { AgentWebSearchProvider } from '../lib/provider.js'
-import { UpstreamError } from '../lib/http.js'
 import { apply } from '../lib/index.js'
 
-const adapter = (search, anonymousOk = true) => ({ search, anonymousOk, credentialRef: anonymousOk ? null : 'TEST_KEY' })
 const result = url => ({ url, title: url, description: 'result body must not appear in history' })
+
+/**
+ * A fake MCP bridge. The engine reaches providers only through this object in
+ * production, so exercising `runSearch` with one covers the shipping path.
+ */
+function fakeBridge(handlers) {
+  const calls = []
+  return {
+    calls,
+    async search(args) {
+      const kind = args.providers[0]
+      calls.push(kind)
+      const handler = handlers[kind]
+      if (!handler) throw new Error(`unexpected provider ${kind}`)
+      return handler(args)
+    },
+  }
+}
+
+const envelope = (kind, args, rows) => ({ query: args.query, providers: { [kind]: { results: rows } } })
+
+/** Reject when the attempt signal aborts, so abort/timeout paths are reachable. */
+const neverResolves = args => new Promise((_, reject) => {
+  const onAbort = () => reject(args.signal.reason ?? new Error('aborted'))
+  if (args.signal?.aborted) onAbort()
+  else args.signal?.addEventListener('abort', onAbort, { once: true })
+})
 
 function config(providers, mode = 'fanout') {
   const wrap = value => ({ get: () => value })
@@ -47,32 +72,34 @@ test('known source stays visible in sanitized history and removed kinds are hidd
   assert.equal(JSON.stringify(history.snapshot()).includes('PRIVATE_'), false)
 })
 
-test('fanout records successes, empty results and missing credential without leaking query', async () => {
+test('fanout records successes, empty results and failures without leaking the query', async () => {
   const attempts = []
   const outcome = await runSearch({
     mode: 'fanout', query: 'PRIVATE_QUERY', maxResults: 8,
     providers: [{ kind: 'ddgs' }, { kind: 'exa' }, { kind: 'gemini' }],
-    adapters: new Map([
-      ['ddgs', adapter(async () => ({ results: [result('https://example.org')] }))],
-      ['exa', adapter(async () => ({ results: [] }))],
-      ['gemini', adapter(async () => { throw new Error('PRIVATE_ERROR') }, false)],
-    ]),
+    bridge: fakeBridge({
+      ddgs: args => envelope('ddgs', args, [result('https://example.org')]),
+      exa: args => envelope('exa', args, []),
+      gemini: () => { throw new Error('PRIVATE_ERROR') },
+    }),
     resolveValue: async () => undefined, attemptTimeoutMs: 2000, totalTimeoutMs: 5000,
     dedupeByUrl: true, includeAnswer: false, onAttempt: event => attempts.push(event),
   })
   assert.equal(outcome.sources.length, 1)
   assert.deepEqual(Object.fromEntries(attempts.map(item => [item.kind, item.status])), {
-    ddgs: 'success', exa: 'empty', gemini: 'skipped',
+    ddgs: 'success', exa: 'empty', gemini: 'failed',
   })
   assert.equal(JSON.stringify(attempts).includes('PRIVATE_'), false)
 })
 
 test('failed upstream reports HTTP status but never exposes its raw error', async () => {
   const attempts = []
+  const failure = new Error('PRIVATE_ERROR')
+  failure.status = 429
   await assert.rejects(runSearch({
     mode: 'fanout', query: 'PRIVATE_QUERY', maxResults: 8,
     providers: [{ kind: 'ddgs' }],
-    adapters: new Map([['ddgs', adapter(async () => { throw new UpstreamError('PRIVATE_ERROR', { status: 429 }) })]]),
+    bridge: fakeBridge({ ddgs: () => { throw failure } }),
     resolveValue: async () => undefined, attemptTimeoutMs: 2000, totalTimeoutMs: 5000,
     dedupeByUrl: true, includeAnswer: false, onAttempt: event => attempts.push(event),
   }))
@@ -83,17 +110,62 @@ test('failed upstream reports HTTP status but never exposes its raw error', asyn
 
 test('fallback records only routes actually tried', async () => {
   const attempts = []
+  const bridge = fakeBridge({
+    ddgs: args => envelope('ddgs', args, [result('https://example.org')]),
+    exa: () => { throw new Error('must not run') },
+  })
   await runSearch({
     mode: 'fallback', query: 'test', maxResults: 8,
     providers: [{ kind: 'ddgs' }, { kind: 'exa' }],
-    adapters: new Map([
-      ['ddgs', adapter(async () => ({ results: [result('https://example.org')] }))],
-      ['exa', adapter(async () => { throw new Error('must not run') })],
-    ]),
+    bridge,
     resolveValue: async () => undefined, attemptTimeoutMs: 2000, totalTimeoutMs: 5000,
     dedupeByUrl: true, includeAnswer: false, onAttempt: event => attempts.push(event),
   })
   assert.deepEqual(attempts.map(item => item.kind), ['ddgs'])
+  assert.deepEqual(bridge.calls, ['ddgs'])
+})
+
+test('every failed upstream yields all_providers_failed with sanitized provider_errors', async () => {
+  await assert.rejects(runSearch({
+    mode: 'fanout', query: 'PRIVATE_QUERY', maxResults: 8,
+    providers: [{ kind: 'ddgs' }, { kind: 'exa' }],
+    bridge: fakeBridge({
+      ddgs: () => { throw new Error('PRIVATE_ERROR') },
+      exa: () => { throw new Error('PRIVATE_ERROR') },
+    }),
+    resolveValue: async () => undefined, attemptTimeoutMs: 2000, totalTimeoutMs: 5000,
+    dedupeByUrl: true, includeAnswer: false,
+  }), error => {
+    assert.equal(error.code, 'all_providers_failed')
+    assert.deepEqual(Object.keys(error.providerErrors).sort(), ['ddgs', 'exa'])
+    assert.equal(JSON.stringify(error.providerErrors).includes('PRIVATE_ERROR'), false)
+    return true
+  })
+})
+
+test('a caller abort during fanout rejects with the abort reason', async () => {
+  const controller = new AbortController()
+  const pending = runSearch({
+    mode: 'fanout', query: 'q', maxResults: 8,
+    providers: [{ kind: 'ddgs' }, { kind: 'exa' }],
+    bridge: fakeBridge({ ddgs: neverResolves, exa: neverResolves }),
+    resolveValue: async () => undefined, attemptTimeoutMs: 5000, totalTimeoutMs: 5000,
+    dedupeByUrl: true, includeAnswer: false, signal: controller.signal,
+  })
+  controller.abort()
+  await assert.rejects(pending, error => error?.name === 'AbortError')
+})
+
+test('an attempt timeout is recorded as a timeout, not as an upstream failure', async () => {
+  const attempts = []
+  await assert.rejects(runSearch({
+    mode: 'fanout', query: 'q', maxResults: 8,
+    providers: [{ kind: 'ddgs' }],
+    bridge: fakeBridge({ ddgs: neverResolves }),
+    resolveValue: async () => undefined, attemptTimeoutMs: 10, totalTimeoutMs: 5000,
+    dedupeByUrl: true, includeAnswer: false, onAttempt: event => attempts.push(event),
+  }))
+  assert.equal(attempts[0].status, 'timeout')
 })
 
 test('authenticated connection route reports current selected provider and calls', async () => {

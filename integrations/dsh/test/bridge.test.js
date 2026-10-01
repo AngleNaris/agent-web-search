@@ -12,9 +12,40 @@ class FakeChild extends EventEmitter {
     this.stdin = new PassThrough()
     this.killed = false
     this.calls = []
+    this.input = Buffer.alloc(0)
     this.stdin.on('data', chunk => {
-      for (const line of chunk.toString().split('\n').filter(Boolean)) handler(JSON.parse(line), this)
+      this.input = Buffer.concat([this.input, chunk])
+      for (;;) {
+        const text = this.#nextRequest()
+        if (text === undefined) return
+        if (text.length === 0) continue
+        handler(JSON.parse(text), this)
+      }
     })
+  }
+
+  /**
+   * Read one request frame, auto-detecting line framing versus
+   * `Content-Length` framing so the bridge can be driven in either mode.
+   */
+  #nextRequest() {
+    if (this.input.length >= 15 && /^content-length:/i.test(this.input.subarray(0, 15).toString('latin1'))) {
+      const headerEnd = this.input.indexOf('\r\n\r\n')
+      if (headerEnd < 0) return undefined
+      const match = this.input.subarray(0, headerEnd).toString('latin1').match(/content-length:\s*(\d+)/i)
+      if (!match) throw new Error('fake child received malformed headers')
+      const start = headerEnd + 4
+      const length = Number(match[1])
+      if (this.input.length - start < length) return undefined
+      const body = this.input.subarray(start, start + length).toString('utf8')
+      this.input = this.input.subarray(start + length)
+      return body
+    }
+    const newline = this.input.indexOf(0x0a)
+    if (newline < 0) return undefined
+    const line = this.input.subarray(0, newline).toString('utf8')
+    this.input = this.input.subarray(newline + 1)
+    return line
   }
 
   reply(message) {
@@ -259,4 +290,75 @@ test('bridge sends grok_search_mode only on grok attempts', async () => {
     const params = calls.find(call => call.method === 'tools/call').params
     assert.equal(params.arguments.grok_search_mode ?? undefined, expected)
   }
+})
+
+// A multi-byte UTF-8 sequence can straddle two stdout chunks. Decoding each
+// chunk on its own would corrupt both halves into U+FFFD, silently mangling CJK
+// titles, descriptions and answers in the model payload and the citation card.
+const CJK_PAYLOAD = {
+  query: '中文查询',
+  providers: {
+    exa: {
+      answer: '中文答案 🚀',
+      results: [{ title: '中文标题 🚀 结尾', url: 'https://example.org/中文路径', description: '中文摘要 🚀' }],
+    },
+  },
+}
+
+function framed(message, lineMode) {
+  const body = `${JSON.stringify(message)}\n`
+  return lineMode ? Buffer.from(body, 'utf8') : Buffer.concat([
+    Buffer.from(`Content-Length: ${Buffer.byteLength(body)}\r\n\r\n`, 'latin1'),
+    Buffer.from(body, 'utf8'),
+  ])
+}
+
+function splitMidCharacter(buffer) {
+  // Split one byte into the first multi-byte character, so the reader sees a
+  // truncated UTF-8 sequence; ASCII-only frames just split in the middle.
+  const index = buffer.indexOf(Buffer.from('中', 'utf8'))
+  const at = index < 0 ? Math.floor(buffer.length / 2) : index + 1
+  return [buffer.subarray(0, at), buffer.subarray(at)]
+}
+
+async function searchWithSplitReply({ lineMode }) {
+  const state = {}
+  const replySplit = async (child, message) => {
+    const [head, tail] = splitMidCharacter(framed(message, lineMode))
+    child.stdout.write(head)
+    // Yield so the reader sees the truncated frame first, which is exactly the
+    // boundary condition being guarded against.
+    await new Promise(resolve => setImmediate(resolve))
+    child.stdout.write(tail)
+  }
+  const bridge = new PythonSearchBridge({
+    spawn: spawnFor(async (message, child) => {
+      if (message.method === 'initialize') {
+        await replySplit(child, { jsonrpc: '2.0', id: message.id, result: { protocolVersion: '2025-06-18' } })
+        return
+      }
+      if (message.method !== 'tools/call') return
+      await replySplit(child, {
+        jsonrpc: '2.0', id: message.id,
+        result: { content: [{ type: 'text', text: JSON.stringify(CJK_PAYLOAD) }] },
+      })
+    }, state),
+    env: {}, lineMode,
+  })
+  return bridge.search({
+    query: 'q', providers: ['exa'], entries: [{ kind: 'exa' }],
+    resolveValue: async () => undefined, timeoutMs: 5000,
+  })
+}
+
+test('line-framed replies keep multi-byte characters split across chunks intact', async () => {
+  const result = await searchWithSplitReply({ lineMode: true })
+  assert.deepEqual(result, CJK_PAYLOAD)
+  assert.equal(JSON.stringify(result).includes('\uFFFD'), false)
+})
+
+test('content-length-framed replies keep multi-byte characters split across chunks intact', async () => {
+  const result = await searchWithSplitReply({ lineMode: false })
+  assert.deepEqual(result, CJK_PAYLOAD)
+  assert.equal(JSON.stringify(result).includes('\uFFFD'), false)
 })

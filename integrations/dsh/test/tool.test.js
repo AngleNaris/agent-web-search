@@ -1,5 +1,6 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
+import { readFileSync } from 'node:fs'
 import { parseToolArgs, registerWebSearchTool } from '../lib/tool.js'
 import { AgentWebSearchProvider } from '../lib/provider.js'
 
@@ -294,4 +295,61 @@ test('the prose-answer switch governs the card only', async () => {
     query: 'q',
     providers: { ddgs: { answer: 'upstream prose', results: [] } },
   })
+})
+
+test('the advertised max_results default and range match the Python operation', async () => {
+  const { stages } = setup()
+  const advertised = stages.tool.parameters.properties.max_results
+  assert.equal(advertised.type, 'integer')
+
+  // Read the core operation's own schema rather than restating the numbers, so
+  // the two contracts cannot drift apart unnoticed.
+  const core = readFileSync(new URL('../../../agent_web_search/schema.py', import.meta.url), 'utf8')
+  const block = core.slice(core.indexOf('"max_results"'))
+  assert.equal(advertised.default, Number(block.match(/"default":\s*(\d+)/)[1]))
+  const maximum = Number(block.match(/"maximum":\s*(\d+)/)[1])
+  assert.equal(Number(block.match(/"minimum":\s*(\d+)/)[1]), 1)
+
+  // DSH's schema DSL cannot express numeric bounds, so the runtime carries them.
+  await assert.rejects(
+    stages.tool.execute({ query: 'q', max_results: maximum + 1 }, {}),
+    new RegExp(`between 1 and ${maximum}`),
+  )
+})
+
+test('renders the model-facing envelope as JSON text', () => {
+  const { stages } = setup()
+  const payload = {
+    query: 'q',
+    providers: { ddgs: { answer: 'a', results: [{ title: 'T', url: 'https://example.org/a', description: 'D' }] } },
+  }
+  assert.deepEqual(stages.tool.output.render({}, payload), [{ type: 'text', text: JSON.stringify(payload) }])
+})
+
+test('an all-providers-failed result draws no citation card', () => {
+  const { stages } = setup()
+  const failure = {
+    error: { code: 'all_providers_failed', message: 'x', provider_errors: { ddgs: 'y' } },
+    query: 'q',
+  }
+  // The envelope is returned as a *successful* value, so `isError` is false here:
+  // presenting it would otherwise draw an empty "no sources" web card.
+  const meta = stages.tool.output.presentationMeta({ query: 'q' }, failure)
+  assert.equal(meta.failed, true)
+  assert.deepEqual(meta.sources, [])
+  assert.equal(stages.tool.presentResult({ query: 'q' }, { isError: false, meta }), undefined)
+})
+
+test('a successful result still draws its citation card', () => {
+  const { stages } = setup()
+  const value = {
+    query: 'q',
+    providers: { ddgs: { results: [{ title: 'T', url: 'https://example.org/a', description: 'D' }] } },
+  }
+  const meta = stages.tool.output.presentationMeta({ query: 'q' }, value)
+  assert.equal('failed' in meta, false)
+  const shown = stages.tool.presentResult({ query: 'q' }, { isError: false, meta })
+  assert.equal(shown.card, 'web')
+  assert.equal(shown.sources.length, 1)
+  assert.match(shown.sources[0].title, /【来源：DuckDuckGo】/)
 })

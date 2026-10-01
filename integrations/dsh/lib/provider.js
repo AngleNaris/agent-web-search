@@ -4,6 +4,15 @@ import { resolveConfig, snapshotsOf } from './config.js'
 import { PythonSearchBridge } from './bridge.js'
 import { runSearch } from './engine.js'
 
+/**
+ * Message on the `WebError` thrown when every enabled upstream failed.
+ *
+ * Exported because the native tool has to recognise this failure after DSH has
+ * re-thrown the error, where only the message may survive: importing it keeps
+ * the two copies from drifting apart.
+ */
+export const ALL_SOURCES_FAILED_MESSAGE = 'agent-web-search: all configured sources failed'
+
 export class AgentWebSearchProvider {
   id = AGENT_WEB_SEARCH_PROVIDER_ID
 
@@ -12,13 +21,34 @@ export class AgentWebSearchProvider {
     this.bridge = options.bridge ?? new PythonSearchBridge(options.bridgeOptions)
   }
 
+  /**
+   * Read the live config without letting a raw schema `ValidationError` escape.
+   *
+   * `available()` is documented by the web seam as a cheap usability check that
+   * runs on every resolution, so it must answer `false` rather than throw; and a
+   * nested schema path in an exception message must never reach the model.
+   *
+   * @returns {{config: object} | {error: unknown}} the resolved config or the failure.
+   */
+  #resolvedConfig() {
+    try {
+      return { config: resolveConfig(snapshotsOf(this.options.config())) }
+    } catch (error) {
+      return { error }
+    }
+  }
+
   available() {
-    const config = resolveConfig(snapshotsOf(this.options.config()))
+    const { config } = this.#resolvedConfig()
+    if (!config) return false
     return config.providers.some(entry => entry.enabled !== false && PROVIDER_KINDS.includes(entry.kind))
   }
 
   async search(request, signal, overrides = {}) {
-    const config = resolveConfig(snapshotsOf(this.options.config()))
+    const { config } = this.#resolvedConfig()
+    if (!config) {
+      throw new WebError('agent-web-search: the plugin configuration is invalid', 'WEB_PROVIDER_UNAVAILABLE')
+    }
     let entries = config.providers
       .filter(entry => entry.enabled !== false && PROVIDER_KINDS.includes(entry.kind))
       .map(entry => ({
@@ -105,7 +135,7 @@ export class AgentWebSearchProvider {
         throw new WebError('agent-web-search: search timed out', 'WEB_PROVIDER_ERROR')
       }
       finish('failed')
-      const wrapped = new WebError('agent-web-search: all configured sources failed', 'WEB_PROVIDER_ERROR')
+      const wrapped = new WebError(ALL_SOURCES_FAILED_MESSAGE, 'WEB_PROVIDER_ERROR')
       if (error?.code === 'all_providers_failed') {
         wrapped.searchCode = 'all_providers_failed'
         wrapped.providerErrors = error.providerErrors

@@ -11,9 +11,12 @@ window.__ModuleLoader__.load({
 		// value-import @deepseek-ai/* packages, and cannot reach the Host modules) */
 		const NS = "agent-web-search";
 		const PROVIDER_KINDS = ["exa", "parallel", "ddgs", "brave", "tavily", "perplexity", "you", "gemini", "grok", "ark", "zhipu_web_search", "zhipu_chat_search", "deepseek", "messages", "responses", "codex_alpha"];
-		const KIND_LABEL = { exa: "Exa", parallel: "Parallel", ddgs: "DuckDuckGo", brave: "Brave Search", tavily: "Tavily", perplexity: "Perplexity", you: "You.com", gemini: "Gemini (official API)", grok: "Grok", ark: "Volcengine ARK", zhipu_web_search: "Zhipu Web Search", zhipu_chat_search: "Zhipu Chat Search", deepseek: "DeepSeek", messages: "Anthropic Messages", responses: "OpenAI Responses", codex_alpha: "Codex Alpha" };
+		const KIND_LABEL = { exa: "Exa", parallel: "Parallel", ddgs: "DuckDuckGo", brave: "Brave Search", tavily: "Tavily", perplexity: "Perplexity", you: "You.com", gemini: "Gemini (Google Search grounding)", grok: "Grok", ark: "Volcengine ARK", zhipu_web_search: "Zhipu Web Search", zhipu_chat_search: "Zhipu Chat Search", deepseek: "DeepSeek", messages: "Anthropic Messages (generic)", responses: "OpenAI Responses (generic)", codex_alpha: "Codex Alpha (experimental)" };
 		const KIND_CREDENTIAL_REF = { exa: "EXA_API_KEY", parallel: "PARALLEL_API_KEY", ddgs: null, brave: "BRAVE_SEARCH_API_KEY", tavily: "TAVILY_API_KEY", perplexity: "PERPLEXITY_API_KEY", you: "YDC_API_KEY", gemini: "GEMINI_API_KEY", grok: "XAI_API_KEY", ark: "ARK_API_KEY", zhipu_web_search: "ZHIPU_WEB_SEARCH_API_KEY", zhipu_chat_search: "ZHIPU_CHAT_SEARCH_API_KEY", deepseek: "DEEPSEEK_API_KEY", messages: "AGENT_WEB_SEARCH_MESSAGES_API_KEY", responses: "AGENT_WEB_SEARCH_RESPONSES_API_KEY", codex_alpha: "AGENT_WEB_SEARCH_CODEX_ALPHA_API_KEY" };
-		const KIND_DEFAULT_BASE_URL = { exa: "https://mcp.exa.ai/mcp", parallel: "https://search.parallel.ai/mcp", ddgs: "https://html.duckduckgo.com/html/", brave: "https://api.search.brave.com/res/v1/web/search", tavily: "https://api.tavily.com/search", perplexity: "https://api.perplexity.ai/search", you: "https://ydc-index.io/v1/search", gemini: "https://generativelanguage.googleapis.com/v1beta/interactions", grok: "https://api.x.ai/v1/responses", ark: "https://ark.cn-beijing.volces.com/api/v3/responses", zhipu_web_search: "https://open.bigmodel.cn", zhipu_chat_search: "https://open.bigmodel.cn", deepseek: "https://api.deepseek.com/anthropic", messages: "https://api.anthropic.com", responses: "https://api.openai.com/v1", codex_alpha: "https://gateway.example/v1/alpha/search" };
+		const KIND_DEFAULT_BASE_URL = { exa: "https://mcp.exa.ai/mcp", parallel: "https://search.parallel.ai/mcp", brave: "https://api.search.brave.com/res/v1/web/search", tavily: "https://api.tavily.com/search", perplexity: "https://api.perplexity.ai/search", you: "https://ydc-index.io/v1/search", gemini: "https://generativelanguage.googleapis.com/v1beta/interactions", grok: "https://api.x.ai/v1/responses", ark: "https://ark.cn-beijing.volces.com/api/v3/responses", zhipu_web_search: "https://open.bigmodel.cn", zhipu_chat_search: "https://open.bigmodel.cn", deepseek: "https://api.deepseek.com", messages: "https://api.anthropic.com", responses: "https://api.openai.com/v1", codex_alpha: "https://gateway.example/v1/alpha/search" };
+		// Mirrors ENDPOINT_OVERRIDE_KINDS: `ddgs` drives the `ddgs` library and reads
+		// no endpoint variable, so the card must not offer it an endpoint field.
+		const ENDPOINT_OVERRIDE_KINDS = PROVIDER_KINDS.filter(kind => kind !== "ddgs");
 		const MODEL_ENV = { deepseek: "AGENT_WEB_SEARCH_DEEPSEEK_MODELS", gemini: "AGENT_WEB_SEARCH_GEMINI_MODELS", grok: "AGENT_WEB_SEARCH_GROK_MODELS", ark: "AGENT_WEB_SEARCH_ARK_MODELS", zhipu_chat_search: "AGENT_WEB_SEARCH_ZHIPU_CHAT_MODELS", messages: "AGENT_WEB_SEARCH_MESSAGES_MODELS", responses: "AGENT_WEB_SEARCH_RESPONSES_MODELS", codex_alpha: "AGENT_WEB_SEARCH_CODEX_ALPHA_MODEL" };
 		const TOOL_TYPE_KINDS = ["messages", "responses"];
 		const TOOL_NAME_KINDS = ["messages"];
@@ -64,7 +67,6 @@ window.__ModuleLoader__.load({
 			historyStatus_failed: "failed",
 			historyStatus_timeout: "timed out",
 			historyStatus_cancelled: "cancelled",
-			historyStatus_skipped: "no key / skipped",
 			enabled: "On",
 			endpoint: "Endpoint",
 			key: "API key",
@@ -146,7 +148,6 @@ window.__ModuleLoader__.load({
 			historyStatus_failed: "失败",
 			historyStatus_timeout: "超时",
 			historyStatus_cancelled: "已取消",
-			historyStatus_skipped: "缺少密钥／跳过",
 			enabled: "启用",
 			endpoint: "接口地址",
 			key: "API Key",
@@ -1059,7 +1060,7 @@ window.__ModuleLoader__.load({
 					),
 				),
 				open ? h("div", { id: `aws-source-${entry.kind}`, style: { ...styles.panel, margin: "8px 14px 12px" } },
-					h("label", { style: { display: "block" } },
+					ENDPOINT_OVERRIDE_KINDS.includes(entry.kind) ? h("label", { style: { display: "block" } },
 						h("span", { style: styles.label }, t("endpoint")),
 						h("input", {
 							type: "url",
@@ -1070,8 +1071,10 @@ window.__ModuleLoader__.load({
 							spellCheck: false,
 							onChange: event => props.onBaseURL(event.target.value),
 						}),
-					),
-					h("p", { style: { ...styles.hint, margin: "2px 0 4px" } }, t("endpointHint")),
+					) : null,
+					ENDPOINT_OVERRIDE_KINDS.includes(entry.kind)
+						? h("p", { style: { ...styles.hint, margin: "2px 0 4px" } }, t("endpointHint"))
+						: null,
 					MODEL_ENV[entry.kind] ? h("label", { style: { display: "block", marginTop: "4px" } },
 						h("span", { style: styles.label }, t("model")),
 						h("input", {
@@ -1231,7 +1234,7 @@ window.__ModuleLoader__.load({
 					h("div", { style: styles.policyCard },
 						h("div", { style: { ...styles.policyCardHeader, display: "flex", alignItems: "center", justifyContent: "space-between" } },
 							h("h4", { style: styles.policyCardTitle }, t("upstreams")),
-							h("span", { style: styles.headerBadge }, `${state.queue.filter(entry => entry.enabled).length} / ${state.queue.length} ${t("enabled")}`),
+							h("span", { style: styles.headerBadge }, `${enabledCount} / ${state.queue.length} ${t("enabled")}`),
 						),
 						state.queue.map(entry => h(UpstreamRow, {
 							key: entry.kind, t, entry, availability: state.availability, disabled,

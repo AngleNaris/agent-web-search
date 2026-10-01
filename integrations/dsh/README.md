@@ -97,9 +97,9 @@ variables from that child. Restart DSH after changing environment variables.
 
 The per-source endpoint field accepts HTTPS URLs, or HTTP URLs on loopback for
 local fakes and development. Embedded credentials and URL fragments are
-rejected. The Python providers honor the DSH endpoint override for the built-in
-API providers; DDGS uses its Python backend and does not support replacing
-its endpoint with an arbitrary HTML URL.
+rejected. The field is offered only for the kinds whose Python provider actually
+reads an endpoint variable, so DDGS — which drives the `ddgs` library directly —
+does not show it, rather than collecting a value nothing can apply.
 
 ## Native result and error behavior
 
