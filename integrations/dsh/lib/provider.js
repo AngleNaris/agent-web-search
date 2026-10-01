@@ -17,14 +17,23 @@ export class AgentWebSearchProvider {
     return config.providers.some(entry => entry.enabled !== false && PROVIDER_KINDS.includes(entry.kind))
   }
 
-  async search(request, signal) {
+  async search(request, signal, overrides = {}) {
     const config = resolveConfig(snapshotsOf(this.options.config()))
-    const entries = config.providers
+    let entries = config.providers
       .filter(entry => entry.enabled !== false && PROVIDER_KINDS.includes(entry.kind))
       .map(entry => ({
         ...entry,
         credentialRef: KIND_CREDENTIAL_REF[entry.kind],
       }))
+    // Per-call provider subset for the model-facing tool: the caller validated
+    // names already, so an empty intersection simply means no enabled sources.
+    if (Array.isArray(overrides.providers) && overrides.providers.length > 0) {
+      const wanted = new Set(overrides.providers)
+      const order = new Map(overrides.providers.map((kind, index) => [kind, index]))
+      entries = entries
+        .filter(entry => wanted.has(entry.kind))
+        .sort((a, b) => order.get(a.kind) - order.get(b.kind))
+    }
     const startedAt = Date.now()
     const attempts = []
     const finish = (status, resultCount = 0) => {
@@ -59,8 +68,8 @@ export class AgentWebSearchProvider {
         mode: config.mode,
         providers: entries,
         query: request?.query,
-        timeRange: config.timeRange,
-        grokMode: config.grokMode,
+        timeRange: overrides.timeRange ?? config.timeRange,
+        grokMode: overrides.grokMode ?? config.grokMode,
         maxResults,
         attemptTimeoutMs: config.attemptTimeoutMs,
         totalTimeoutMs: config.totalTimeoutMs,

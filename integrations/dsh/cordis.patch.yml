@@ -1,6 +1,6 @@
 # dsh-agent-web-search bundle layer.
 #
-# Three moves, in order:
+# Four moves, in order:
 #
 # 1. PIN the web seam's search provider to this plugin's id. A patch replaces
 #    the targeted row's WHOLE config, so every key this deployment needs must be
@@ -15,7 +15,14 @@
 #    Plugins page while never being selected. Deleting these two lines restores
 #    it; so does setting `disabled: false` from your own profile layer.
 #
-# 3. INSERT this package's plugin row. Everything the row's config says can be
+# 3. TURN OFF the shipped `{ queries }` web_search tool, keeping `web_fetch`.
+#    This plugin registers its own `web_search` with the MCP-consistent schema
+#    (query/max_results/time_range/providers/grok_search_mode), so the shipped
+#    one must not compete for the same name. This restates tool-web's other
+#    defaults verbatim because a patch replaces the whole row config; re-enable
+#    `search` here only if you also remove this plugin's tool registration.
+#
+# 4. INSERT this package's plugin row. Everything the row's config says can be
 #    edited afterwards from Settings → agent-web-search, because the schema marks
 #    every field volatile — the values here are only the shipped defaults.
 #
@@ -30,6 +37,16 @@
 
 - id: web-search-deepseek
   disabled: true
+
+- id: tool-web
+  config:
+    search: false
+    fetch: true
+    searchMaxResults: 8
+    searchMaxQueries: 4
+    fetchTimeoutMs: 30000
+    searchTimeoutMs: 30000
+    fetchMaxOutputChars: 200000
 
 - insert:
     - id: agent-web-search

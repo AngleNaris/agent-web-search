@@ -20,6 +20,7 @@
 import { credentialRef } from '@deepseek-ai/dsh-credentials'
 import { Config, resolveConfig, snapshotsOf } from './config.js'
 import { AgentWebSearchProvider } from './provider.js'
+import { registerWebSearchTool } from './tool.js'
 import { SearchHistory } from './history.js'
 import {
   AGENT_WEB_SEARCH_NAMESPACE,
@@ -53,9 +54,11 @@ export const name = PACKAGE_NAME
  *
  * `web` is where the provider goes. `credentials` is read-only here: API keys
  * stay in the credential store addressed by reference name and never enter the
- * settings section, so a saved config holds no secrets.
+ * settings section, so a saved config holds no secrets. `tools` and
+ * `systemPrompt` host the MCP-consistent `web_search` model tool that replaces
+ * the shipped `{ queries }` one (whose row this bundle disables).
  */
-export const inject = ['web', 'credentials']
+export const inject = ['web', 'credentials', 'tools', 'systemPrompt']
 
 /** A POSIX identifier, which is all `credentialRef` accepts. */
 const REF_NAME = /^[A-Za-z_][A-Za-z0-9_]*$/
@@ -89,14 +92,16 @@ async function resolveCredential(ctx, ref) {
  */
 export function apply(ctx, config) {
   const history = new SearchHistory()
-  ctx.web.registerSearchProvider(new AgentWebSearchProvider({
+  const provider = new AgentWebSearchProvider({
     // Read per request, so a queue committed from the settings page between two
     // searches serves the second one.
     config: () => config,
     resolveValue: ref => resolveCredential(ctx, ref),
     record: entry => history.record(entry),
     logger: ctx.logger,
-  }))
+  })
+  ctx.web.registerSearchProvider(provider)
+  registerWebSearchTool(ctx, { config: () => config, provider })
   // The Connection's /api fetch routes enforce its normal peer authentication.
   // No public webServer route, raw query, credential or response body is exposed.
   ctx.inject(['connection'], scoped => scoped.effect(() => scoped.connection.fetch.register({

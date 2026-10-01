@@ -6,6 +6,13 @@
 sources, and citation cards. It does **not** install or expose an
 `mcp__...__web_search` model tool.
 
+The bundle also replaces the model-facing tool itself: the shipped
+`{ queries }` schema cannot express the MCP operation contract, so the
+`tool-web` row is switched to `search: false` (keeping `web_fetch`) and this
+plugin registers its own `web_search` with the same parameters as the Python
+operation — `query`, `max_results`, `time_range`, `providers`, and
+`grok_search_mode`. Card values act as defaults for omitted arguments.
+
 ## Architecture
 
 - DSH registers exactly one `ctx.web` provider: `agent-web-search`.

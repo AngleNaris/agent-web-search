@@ -102,6 +102,8 @@ test('authenticated connection route reports current selected provider and calls
   const current = { searchProvider: 'agent-web-search' }
   apply({
     web: { registerSearchProvider: value => { provider = value } },
+    tools: { get: () => ({}), register: () => () => {} },
+    systemPrompt: { section: () => {}, getSectionOrder: () => 0 },
     loader: { entries: () => [{ options: { id: 'web' }, fiber: { config: current } }] },
     inject: (_names, callback) => callback({
       effect: register => register(),
